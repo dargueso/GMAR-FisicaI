@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coriolis Effect Simulator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1117;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 24px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: #888; margin-top: 4px; }
+
+    .canvases {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #2a7a8a;
+    }
+
+    canvas {
+      border-radius: 50%;
+      background: #0f1117;
+      cursor: crosshair;
+      display: block;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: #161b22;
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: #888;
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: #2a7a8a;
+      cursor: pointer;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: #e0e0e0;
+      width: 70px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid #2a7a8a;
+      border-radius: 6px;
+      background: transparent;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover { background: #1a3a4a; }
+    button.active { background: #2a7a8a; color: #fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #555;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Coriolis Effect Simulator</h1>
+  <p>How Earth's rotation deflects moving objects</p>
+</header>
+
+<div class="canvases">
+  <div class="panel">
+    <span class="panel-label">Rotating Frame (Earth)</span>
+    <canvas id="canvas-rotating" width="340" height="340"></canvas>
+  </div>
+  <div class="panel">
+    <span class="panel-label">Absolute Frame (Space)</span>
+    <canvas id="canvas-inertial" width="340" height="340"></canvas>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="control-row">
+    <span class="control-label">Hemisphere</span>
+    <div class="button-row" style="justify-content:flex-start;">
+      <button id="btn-nh" class="active">Northern (NH)</button>
+      <button id="btn-sh">Southern (SH)</button>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Rotation rate</span>
+    <input type="range" id="slider-omega" min="0" max="5" step="0.1" value="1">
+    <span class="control-value" id="val-omega">1.0 × Ω</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Initial speed</span>
+    <input type="range" id="slider-speed" min="0" max="1000" step="10" value="200">
+    <span class="control-value" id="val-speed">200 m/s</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Direction (bearing)</span>
+    <input type="range" id="slider-bearing" min="0" max="360" step="1" value="90">
+    <span class="control-value" id="val-bearing">90° (E)</span>
+  </div>
+
+  <div class="button-row">
+    <button id="btn-play">Play</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+
+  <p class="hint">Click on either disc to set the particle's starting position</p>
+</div>
+
+<script src="physics.js"></script>
+<script src="renderer.js"></script>
+<script src="controls.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
