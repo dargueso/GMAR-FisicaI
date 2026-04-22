@@ -146,3 +146,128 @@ function drawCrosshair(ctx, px, py) {
   ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * Draw the accumulating trail as a polyline.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Array<{px,py}>} trail  array of canvas-pixel positions
+ */
+function drawTrail(ctx, trail) {
+  if (trail.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = '#f0a500';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(trail[0].px, trail[0].py);
+  for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].px, trail[i].py);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draw particle with motion-blur effect (ghost at previous positions).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} px  current canvas x
+ * @param {number} py  current canvas y
+ * @param {Array<{px,py}>} trail  for ghost positions
+ */
+function drawParticle(ctx, px, py, trail) {
+  const ghosts = trail.slice(-4);
+  const alphas = [0.1, 0.2, 0.35, 0.55];
+  for (let i = 0; i < ghosts.length; i++) {
+    ctx.save();
+    ctx.globalAlpha = alphas[i];
+    ctx.beginPath();
+    ctx.arc(ghosts[i].px, ghosts[i].py, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(px, py, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Draw an arrow from (x,y) in direction (dx,dy) with given color.
+ * dx,dy are in canvas pixel units (positive dy = downward).
+ * Length clamped to [minLen, maxLen].
+ */
+function drawArrow(ctx, x, y, dx, dy, color, minLen = 10, maxLen = 55) {
+  const mag = Math.sqrt(dx * dx + dy * dy);
+  if (mag < 1e-10) return;
+  const len = Math.max(minLen, Math.min(maxLen, mag));
+  const nx = dx / mag;
+  const ny = dy / mag;
+  const ex = x + nx * len;
+  const ey = y + ny * len;
+  const headLen = 8;
+  const angle = Math.atan2(ny, nx);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen * Math.cos(angle - 0.4), ey - headLen * Math.sin(angle - 0.4));
+  ctx.lineTo(ex - headLen * Math.cos(angle + 0.4), ey - headLen * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+const ARROW_VEL_SCALE = 0.04;    // pixels per m/s for velocity arrow
+const ARROW_COR_SCALE = 50000;   // pixels per (m/s²) for Coriolis arrow
+
+/**
+ * Draw velocity (white) and Coriolis force (cyan) arrows on the particle.
+ *
+ * Coordinate note: physics y is "up on disc", canvas y increases downward.
+ * Canvas mapping: canvas_dx = phys_dx, canvas_dy = -phys_dy.
+ *
+ * Velocity: (vx, vy) in physics → canvas arrow (vx, -vy).
+ * Coriolis: physics (ax, ay) = (f×vy, -f×vx) → canvas (f×vy, f×vx).
+ *
+ * @param {number} vx  m/s East (physics x)
+ * @param {number} vy  m/s "up on disc" (physics y)
+ * @param {number} f   Coriolis parameter (rad/s)
+ */
+function drawAnnotations(ctx, px, py, vx, vy, f) {
+  // Velocity arrow — flip physics y to canvas y
+  drawArrow(ctx, px, py, vx * ARROW_VEL_SCALE, -vy * ARROW_VEL_SCALE, '#ffffff');
+
+  // Coriolis acceleration in canvas coords: (f×vy, f×vx)
+  // (physics dvy/dt = -f×vx → canvas_dy = -physics_dy = +f×vx)
+  drawArrow(ctx, px, py, f * vy * ARROW_COR_SCALE, f * vx * ARROW_COR_SCALE, '#00d4d4');
+}
+
+/**
+ * Draw info box (speed, deflection, elapsed time) in top-right of canvas.
+ */
+function drawInfoBox(ctx, canvasW, speed, deflection, elapsed) {
+  const lines = [
+    `Speed: ${speed.toFixed(0)} m/s`,
+    `Deflection: ${deflection.toFixed(1)}°`,
+    `Time: ${(elapsed / 3600).toFixed(2)} h`,
+  ];
+  const x = canvasW - 12;
+  const y0 = 14;
+  ctx.save();
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x - 130, y0 - 12, 134, lines.length * 16 + 6);
+  ctx.fillStyle = '#c0c0c0';
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y0 + i * 16);
+  ctx.restore();
+}
