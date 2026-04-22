@@ -115,6 +115,11 @@
       color: #555;
       text-align: center;
     }
+
+    @media (max-width: 760px) {
+      canvas { width: calc(100vw - 32px); height: calc(100vw - 32px); }
+      .canvases { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
@@ -173,7 +178,7 @@
 
 <script src="physics.js"></script>
 <script src="renderer.js"></script>
-<script src="controls.js"></script>
 <script src="main.js"></script>
+<script src="controls.js"></script>
 </body>
 </html>

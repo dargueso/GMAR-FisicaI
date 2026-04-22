@@ -6,8 +6,6 @@ const DISC_CX      = CANVAS_SIZE / 2;
 const DISC_CY      = CANVAS_SIZE / 2;
 const SCALE        = DISC_RADIUS / EQ_RADIUS;   // pixels per metre (EQ_RADIUS from physics.js)
 const TIME_SCALE   = 3600;                       // 1 animation second = 1 real hour
-const DT_ANIM      = 1 / 60;                     // seconds per frame (target 60fps)
-const DT_REAL      = DT_ANIM * TIME_SCALE;       // real seconds per frame
 
 // Default initial position: 45°N (NH) or 45°S (SH), lon = 0°
 function defaultInitPos(hemisphere) {
@@ -31,6 +29,7 @@ const state = {
   elapsedReal: 0,       // accumulated real seconds
   running: false,
   rafId: null,
+  lastTime: null,       // rAF timestamp of previous frame
 };
 
 function resetSim() {
@@ -42,6 +41,7 @@ function resetSim() {
   state.trailRot     = [];
   state.trailIne     = [];
   state.elapsedReal  = 0;
+  state.lastTime     = null;
   renderBoth();
 }
 
@@ -57,7 +57,7 @@ function isOutsideDisc(x, y) {
   return Math.sqrt(x*x + y*y) > EQ_RADIUS * 0.98;
 }
 
-function renderFrame(ctx, physState, trail) {
+function renderFrame(ctx, physState, trail, showCoriolis) {
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
 
@@ -72,8 +72,10 @@ function renderFrame(ctx, physState, trail) {
     const { px, py } = metersToCanvas(physState.x, physState.y, DISC_CX, DISC_CY, SCALE);
     drawParticle(ctx, px, py, trail);
 
-    const f = coriolisParam(physState.x, physState.y, state.omegaMult, state.hemisphere);
-    drawAnnotations(ctx, px, py, physState.vx, physState.vy, f);
+    if (showCoriolis) {
+      const f = coriolisParam(physState.x, physState.y, state.omegaMult, state.hemisphere);
+      drawAnnotations(ctx, px, py, physState.vx, physState.vy, f);
+    }
 
     const speed = Math.sqrt(physState.vx**2 + physState.vy**2);
     const defl  = state.initVelocity
@@ -86,20 +88,19 @@ function renderFrame(ctx, physState, trail) {
 function renderBoth() {
   const ctxRot = document.getElementById('canvas-rotating').getContext('2d');
   const ctxIne = document.getElementById('canvas-inertial').getContext('2d');
-  renderFrame(ctxRot, state.rotating, state.trailRot);
+  renderFrame(ctxRot, state.rotating, state.trailRot, true);
   renderFrame(ctxIne, state.inertial, state.trailIne);
 }
 
-let lastTime = null;
-
 function animate(timestamp) {
   if (!state.running) return;
-  if (lastTime === null) lastTime = timestamp;
-  const dtAnim = Math.min((timestamp - lastTime) / 1000, 0.05);  // cap at 50ms
-  lastTime = timestamp;
+  if (state.lastTime === null) state.lastTime = timestamp;
+  const dtAnim = Math.min((timestamp - state.lastTime) / 1000, 0.05);  // cap at 50ms
+  state.lastTime = timestamp;
   const dtReal = dtAnim * TIME_SCALE;
 
-  if (isOutsideDisc(state.rotating.x, state.rotating.y)) {
+  if (isOutsideDisc(state.rotating.x, state.rotating.y) ||
+      isOutsideDisc(state.inertial.x,  state.inertial.y)) {
     state.running = false;
     renderBoth();
     showBoundaryMessage();
@@ -137,9 +138,9 @@ function showBoundaryMessage() {
 function startSim() {
   if (state.running) return;
   if (!state.rotating) resetSim();
-  state.running = true;
-  lastTime = null;
-  state.rafId = requestAnimationFrame(animate);
+  state.running  = true;
+  state.lastTime = null;
+  state.rafId    = requestAnimationFrame(animate);
 }
 
 function pauseSim() {
