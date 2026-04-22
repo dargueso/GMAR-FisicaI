@@ -70,4 +70,15 @@ const EQ_RADIUS = R * Math.PI / 2;
   assert.ok(Math.abs(y - EQ_RADIUS) < 10, `equator lon=0 y: expected ${EQ_RADIUS}, got ${y}`);
 }
 
+// bearingToVelocity: 0°(N)→(0,speed), 90°(E)→(speed,0)
+{
+  const { bearingToVelocity } = require('../../simulations/coriolis/physics.js');
+  const { vx: vx0, vy: vy0 } = bearingToVelocity(0, 100);
+  assert.ok(Math.abs(vx0) < 1e-10, `N bearing vx`);
+  assert.ok(Math.abs(vy0 - 100) < 1e-10, `N bearing vy`);
+  const { vx: vx90, vy: vy90 } = bearingToVelocity(90, 100);
+  assert.ok(Math.abs(vx90 - 100) < 1e-10, `E bearing vx`);
+  assert.ok(Math.abs(vy90) < 1e-10, `E bearing vy`);
+}
+
 console.log('All physics tests passed.');
