@@ -57,22 +57,9 @@ function isOutsideDisc(x, y) {
   return Math.sqrt(x*x + y*y) > EQ_RADIUS * 0.98;
 }
 
-// discRotation: canvas angle (rad) by which to rotate the disc background.
-// Used in the inertial frame to show the Earth spinning under a straight-line particle.
-function renderFrame(ctx, physState, trail, showCoriolis, discRotation) {
+function renderFrame(ctx, physState, trail, showCoriolis) {
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-  // Draw disc, optionally rotated (inertial frame only)
-  if (discRotation) {
-    ctx.save();
-    ctx.translate(DISC_CX, DISC_CY);
-    ctx.rotate(discRotation);
-    ctx.translate(-DISC_CX, -DISC_CY);
-    drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
-    ctx.restore();
-  } else {
-    drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
-  }
+  drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
 
   if (state.initPos) {
     const c = metersToCanvas(state.initPos.x, state.initPos.y, DISC_CX, DISC_CY, SCALE);
@@ -99,12 +86,8 @@ function renderFrame(ctx, physState, trail, showCoriolis, discRotation) {
 function renderBoth() {
   const ctxRot = document.getElementById('canvas-rotating').getContext('2d');
   const ctxIne = document.getElementById('canvas-inertial').getContext('2d');
-  // In the inertial frame the disc (Earth) rotates under the straight-line particle.
-  // NH: counterclockwise = negative canvas angle; SH: clockwise = positive.
-  const earthAngle = OMEGA * state.omegaMult * state.elapsedReal;
-  const discRotation = (state.hemisphere === 'NH' ? -1 : 1) * earthAngle;
   renderFrame(ctxRot, state.rotating, state.trailRot, true,  0);
-  renderFrame(ctxIne, state.inertial, state.trailIne, false, discRotation);
+  renderFrame(ctxIne, state.inertial, state.trailIne, false, 0);
 }
 
 function animate(timestamp) {
