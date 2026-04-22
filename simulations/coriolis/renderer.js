@@ -175,9 +175,10 @@ function drawTrail(ctx, trail) {
 function drawParticle(ctx, px, py, trail) {
   const ghosts = trail.slice(-4);
   const alphas = [0.1, 0.2, 0.35, 0.55];
+  const offset = 4 - ghosts.length;  // newest ghost always gets alpha 0.55
   for (let i = 0; i < ghosts.length; i++) {
     ctx.save();
-    ctx.globalAlpha = alphas[i];
+    ctx.globalAlpha = alphas[offset + i];
     ctx.beginPath();
     ctx.arc(ghosts[i].px, ghosts[i].py, 5, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
@@ -188,7 +189,7 @@ function drawParticle(ctx, px, py, trail) {
   ctx.beginPath();
   ctx.arc(px, py, 5, 0, Math.PI * 2);
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(255,255,255,0.6)';
+  ctx.shadowColor = '#ffffff';
   ctx.shadowBlur = 8;
   ctx.fill();
   ctx.restore();
