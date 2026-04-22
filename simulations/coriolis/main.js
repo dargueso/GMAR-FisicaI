@@ -12,31 +12,46 @@ function defaultInitPos(hemisphere) {
   return latLonToMeters(hemisphere === 'NH' ? 45 : -45, 0, hemisphere);
 }
 
+// In our polar projection, longitude increases clockwise (NH) or counterclockwise (SH).
+// Earth rotation angle (radians, positive = clockwise for NH, negative for SH).
+function earthAngle(elapsedReal, omegaMult, hemisphere) {
+  return (hemisphere === 'NH' ? 1 : -1) * OMEGA * omegaMult * elapsedReal;
+}
+
+// Convert rotating-frame position to inertial canvas position.
+// The inertial position is R(θ_clockwise) × (x_rot, y_rot), which places the particle
+// at the same geographic location on the rotating disc as on the fixed disc.
+function rotatingToInertial(x, y, θ) {
+  const c = Math.cos(θ), s = Math.sin(θ);
+  return { x:  x * c + y * s,
+           y: -x * s + y * c };
+}
+
 const state = {
-  hemisphere: 'NH',
-  omegaMult: 1.0,
-  speed: 200,
-  bearing: 90,
+  hemisphere:   'NH',
+  omegaMult:    1.0,
+  speed:        200,
+  bearing:      90,
 
-  rotating:     null,   // {x,y,vx,vy} — rotating frame state
-  inertial:     null,   // {x,y,vx,vy} — inertial frame state
-  initVelocity: null,   // {vx,vy} — initial velocity for deflection calc
-  initPos:      null,   // {x,y} — initial position (metres)
+  rotating:     null,   // {x,y,vx,vy} — Earth-fixed (rotating) frame state
+  ineState:     null,   // {x,y,vx,vy} — inertial position (computed from rotating + θ)
+  initVelocity: null,   // {vx,vy} for deflection angle calculation
+  initPos:      null,   // {x,y} metres — starting geographic position
 
-  trailRot: [],         // canvas {px,py} points for rotating trail
-  trailIne: [],         // canvas {px,py} points for inertial trail
+  trailRot: [],         // canvas {px,py} — rotating frame trail (Coriolis curve)
+  trailIne: [],         // canvas {px,py} — inertial trail (straight line)
 
-  elapsedReal: 0,       // accumulated real seconds
-  running: false,
-  rafId: null,
-  lastTime: null,       // rAF timestamp of previous frame
+  elapsedReal: 0,
+  running:     false,
+  rafId:       null,
+  lastTime:    null,
 };
 
 function resetSim() {
   const pos = state.initPos || defaultInitPos(state.hemisphere);
   const vel = bearingToVelocity(state.bearing, state.speed);
   state.rotating     = { x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy };
-  state.inertial     = { x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy };
+  state.ineState     = { x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy };
   state.initVelocity = { vx: vel.vx, vy: vel.vy };
   state.trailRot     = [];
   state.trailIne     = [];
@@ -57,12 +72,29 @@ function isOutsideDisc(x, y) {
   return Math.sqrt(x*x + y*y) > EQ_RADIUS * 0.98;
 }
 
-function renderFrame(ctx, physState, trail, showCoriolis) {
+// discAngle: canvas rotation applied to the disc only (inertial panel uses Earth rotation).
+// physState: position in the frame to display (rotating or inertial coords).
+function renderFrame(ctx, physState, trail, showCoriolis, discAngle) {
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-  drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
 
+  // Draw disc, optionally rotated (inertial frame shows Earth spinning)
+  if (discAngle) {
+    ctx.save();
+    ctx.translate(DISC_CX, DISC_CY);
+    ctx.rotate(discAngle);
+    ctx.translate(-DISC_CX, -DISC_CY);
+    drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
+    ctx.restore();
+  } else {
+    drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS, state.hemisphere, SCALE);
+  }
+
+  // Crosshair at starting geographic position (unrotated in both frames)
   if (state.initPos) {
-    const c = metersToCanvas(state.initPos.x, state.initPos.y, DISC_CX, DISC_CY, SCALE);
+    const initIne = discAngle
+      ? rotatingToInertial(state.initPos.x, state.initPos.y, discAngle)
+      : state.initPos;
+    const c = metersToCanvas(initIne.x, initIne.y, DISC_CX, DISC_CY, SCALE);
     drawCrosshair(ctx, c.px, c.py);
   }
 
@@ -86,8 +118,9 @@ function renderFrame(ctx, physState, trail, showCoriolis) {
 function renderBoth() {
   const ctxRot = document.getElementById('canvas-rotating').getContext('2d');
   const ctxIne = document.getElementById('canvas-inertial').getContext('2d');
-  renderFrame(ctxRot, state.rotating, state.trailRot, true,  0);
-  renderFrame(ctxIne, state.inertial, state.trailIne, false, 0);
+  const θ = earthAngle(state.elapsedReal, state.omegaMult, state.hemisphere);
+  renderFrame(ctxRot, state.rotating,  state.trailRot, true,  0);
+  renderFrame(ctxIne, state.ineState,  state.trailIne, false, θ);
 }
 
 function animate(timestamp) {
@@ -97,21 +130,34 @@ function animate(timestamp) {
   state.lastTime = timestamp;
   const dtReal = dtAnim * TIME_SCALE;
 
-  if (isOutsideDisc(state.rotating.x, state.rotating.y) ||
-      isOutsideDisc(state.inertial.x,  state.inertial.y)) {
+  if (isOutsideDisc(state.rotating.x, state.rotating.y)) {
     state.running = false;
     renderBoth();
     showBoundaryMessage();
     return;
   }
 
+  // Advance rotating frame with Coriolis
   const f = coriolisParam(state.rotating.x, state.rotating.y, state.omegaMult, state.hemisphere);
   state.rotating = rk4Step(state.rotating, dtReal, f);
-  state.inertial  = straightStep(state.inertial, dtReal);
   state.elapsedReal += dtReal;
 
+  // Derive inertial position: rotate the Earth-fixed position by the Earth rotation angle.
+  // This places the particle at the same geographic location on the rotating disc.
+  // Distance from pole is preserved (rotation is an isometry), so boundary is checked above.
+  const θ = earthAngle(state.elapsedReal, state.omegaMult, state.hemisphere);
+  const ine = rotatingToInertial(state.rotating.x, state.rotating.y, θ);
+
+  // Inertial velocity: d/dt[R(θ)·r_rot] = Ω_perp(r_rot) + R(θ)·v_rot
+  // The tangential component due to Earth rotation + the rotated launch velocity.
+  const Ωz  = (state.hemisphere === 'NH' ? 1 : -1) * OMEGA * state.omegaMult;
+  const c = Math.cos(θ), s = Math.sin(θ);
+  const vx_ine =  state.rotating.vx * c + state.rotating.vy * s + Ωz *  ine.y;
+  const vy_ine = -state.rotating.vx * s + state.rotating.vy * c - Ωz *  ine.x;
+  state.ineState = { x: ine.x, y: ine.y, vx: vx_ine, vy: vy_ine };
+
   const cRot = metersToCanvas(state.rotating.x, state.rotating.y, DISC_CX, DISC_CY, SCALE);
-  const cIne = metersToCanvas(state.inertial.x,  state.inertial.y,  DISC_CX, DISC_CY, SCALE);
+  const cIne = metersToCanvas(ine.x, ine.y, DISC_CX, DISC_CY, SCALE);
   state.trailRot.push({ px: cRot.px, py: cRot.py });
   state.trailIne.push({ px: cIne.px, py: cIne.py });
 
