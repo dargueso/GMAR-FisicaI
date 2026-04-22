@@ -6,6 +6,7 @@ const {
   rk4Step,
   straightStep,
   latLonToMeters,
+  bearingToVelocity,
 } = require('../../simulations/coriolis/physics.js');
 
 const R = 6_371_000;
@@ -72,7 +73,6 @@ const EQ_RADIUS = R * Math.PI / 2;
 
 // bearingToVelocity: 0°(N)→(0,speed), 90°(E)→(speed,0)
 {
-  const { bearingToVelocity } = require('../../simulations/coriolis/physics.js');
   const { vx: vx0, vy: vy0 } = bearingToVelocity(0, 100);
   assert.ok(Math.abs(vx0) < 1e-10, `N bearing vx`);
   assert.ok(Math.abs(vy0 - 100) < 1e-10, `N bearing vy`);
