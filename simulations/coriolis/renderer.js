@@ -243,13 +243,15 @@ const ARROW_COR_SCALE = 50000;   // pixels per (m/s²) for Coriolis arrow
  * @param {number} vy  m/s "up on disc" (physics y)
  * @param {number} f   Coriolis parameter (rad/s)
  */
-function drawAnnotations(ctx, px, py, vx, vy, f) {
-  // Velocity arrow — flip physics y to canvas y
+function drawAnnotations(ctx, px, py, vx, vy, f, showCoriolis = true) {
+  // Velocity arrow always shown — flip physics y to canvas y
   drawArrow(ctx, px, py, vx * ARROW_VEL_SCALE, -vy * ARROW_VEL_SCALE, '#ffffff');
 
-  // Coriolis acceleration in canvas coords: (f×vy, f×vx)
-  // (physics dvy/dt = -f×vx → canvas_dy = -physics_dy = +f×vx)
-  drawArrow(ctx, px, py, f * vy * ARROW_COR_SCALE, f * vx * ARROW_COR_SCALE, '#00d4d4');
+  // Coriolis arrow only in rotating frame
+  // canvas coords: (f×vy, f×vx) — physics dvy/dt = -f×vx → canvas_dy = +f×vx
+  if (showCoriolis) {
+    drawArrow(ctx, px, py, f * vy * ARROW_COR_SCALE, f * vx * ARROW_COR_SCALE, '#00d4d4');
+  }
 }
 
 /**
