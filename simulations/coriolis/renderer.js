@@ -66,7 +66,7 @@ function drawDisc(ctx, cx, cy, r, hemisphere, scale) {
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
 
-  _drawGraticule(ctx, cx, cy, r, hemisphere, scale);
+  _drawGraticule(ctx, cx, cy, r, scale);
   _drawContinents(ctx, cx, cy, hemisphere, scale);
 
   ctx.restore();
@@ -81,7 +81,7 @@ function drawDisc(ctx, cx, cy, r, hemisphere, scale) {
   ctx.restore();
 }
 
-function _drawGraticule(ctx, cx, cy, r, hemisphere, scale) {
+function _drawGraticule(ctx, cx, cy, r, scale) {
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
   ctx.lineWidth = 0.8;
 
