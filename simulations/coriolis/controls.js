@@ -71,10 +71,11 @@ window.addEventListener('load', () => {
   ['canvas-rotating', 'canvas-inertial'].forEach(id => {
     document.getElementById(id).addEventListener('click', e => {
       const rect   = e.target.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
-      const dx = clickX - DISC_CX;
-      const dy = clickY - DISC_CY;
+      // Scale CSS pixels → canvas internal pixels (differ on narrow screens)
+      const scaleX = e.target.width  / rect.width;
+      const scaleY = e.target.height / rect.height;
+      const dx = (e.clientX - rect.left  - rect.width  / 2) * scaleX;
+      const dy = (e.clientY - rect.top   - rect.height / 2) * scaleY;
       if (Math.sqrt(dx * dx + dy * dy) > DISC_RADIUS) return;
       simState.initPos = {
         x:  dx / SCALE,
