@@ -31,6 +31,7 @@ const state = {
   elapsedReal: 0,       // accumulated real seconds
   running: false,
   rafId: null,
+  lastTime: null,       // rAF timestamp of previous frame
 };
 
 function resetSim() {
@@ -42,6 +43,7 @@ function resetSim() {
   state.trailRot     = [];
   state.trailIne     = [];
   state.elapsedReal  = 0;
+  state.lastTime     = null;
   renderBoth();
 }
 
@@ -90,16 +92,15 @@ function renderBoth() {
   renderFrame(ctxIne, state.inertial, state.trailIne);
 }
 
-let lastTime = null;
-
 function animate(timestamp) {
   if (!state.running) return;
-  if (lastTime === null) lastTime = timestamp;
-  const dtAnim = Math.min((timestamp - lastTime) / 1000, 0.05);  // cap at 50ms
-  lastTime = timestamp;
+  if (state.lastTime === null) state.lastTime = timestamp;
+  const dtAnim = Math.min((timestamp - state.lastTime) / 1000, 0.05);  // cap at 50ms
+  state.lastTime = timestamp;
   const dtReal = dtAnim * TIME_SCALE;
 
-  if (isOutsideDisc(state.rotating.x, state.rotating.y)) {
+  if (isOutsideDisc(state.rotating.x, state.rotating.y) ||
+      isOutsideDisc(state.inertial.x,  state.inertial.y)) {
     state.running = false;
     renderBoth();
     showBoundaryMessage();
@@ -137,9 +138,9 @@ function showBoundaryMessage() {
 function startSim() {
   if (state.running) return;
   if (!state.rotating) resetSim();
-  state.running = true;
-  lastTime = null;
-  state.rafId = requestAnimationFrame(animate);
+  state.running  = true;
+  state.lastTime = null;
+  state.rafId    = requestAnimationFrame(animate);
 }
 
 function pauseSim() {
