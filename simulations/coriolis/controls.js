@@ -1,20 +1,24 @@
 // simulations/coriolis/controls.js
+// Depends on globals assigned synchronously by main.js at parse time:
+// simState, startSim, pauseSim, resetSim, DISC_CX, DISC_CY, DISC_RADIUS, SCALE
 
 window.addEventListener('load', () => {
+  const btnNH = document.getElementById('btn-nh');
+  const btnSH = document.getElementById('btn-sh');
 
   // ── Hemisphere toggle ──────────────────────────────────────────────────────
-  document.getElementById('btn-nh').addEventListener('click', () => {
+  btnNH.addEventListener('click', () => {
     simState.hemisphere = 'NH';
-    document.getElementById('btn-nh').classList.add('active');
-    document.getElementById('btn-sh').classList.remove('active');
+    btnNH.classList.add('active');
+    btnSH.classList.remove('active');
     simState.initPos = null;
     pauseSim();
     resetSim();
   });
-  document.getElementById('btn-sh').addEventListener('click', () => {
+  btnSH.addEventListener('click', () => {
     simState.hemisphere = 'SH';
-    document.getElementById('btn-sh').classList.add('active');
-    document.getElementById('btn-nh').classList.remove('active');
+    btnSH.classList.add('active');
+    btnNH.classList.remove('active');
     simState.initPos = null;
     pauseSim();
     resetSim();
