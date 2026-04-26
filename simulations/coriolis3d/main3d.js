@@ -11,6 +11,7 @@ const state3D = {
   speed:       200,
   bearing:     0,
   timeScale:   1,
+  frameMode:   'fixed',  // 'fixed' | 'earth' | 'follow'
   trailMode:   'space',  // 'space' | 'earth'
   pos:         null,   // inertial world unit vector
   vel:         null,   // m/s — inertial frame
@@ -25,7 +26,7 @@ const state3D = {
 
 let g_renderer, g_scene, g_camera, g_earthGroup, g_earthMesh;
 let g_partMesh, g_partGlow, g_trailLine, g_trailBuf;
-let g_velArrow, g_crosshairLine, g_orbit;
+let g_velArrow, g_corArrow, g_crosshairLine, g_orbit;
 
 function getOmegaVec() {
   if (state3D.noRotation) return { x: 0, y: 0, z: 0 };
@@ -53,12 +54,19 @@ function resetSim3D() {
 
 function renderFrame3D() {
   const θ = earthAngle3D();
-  g_earthGroup.rotation.y = θ;
-  updateParticle(g_partMesh, g_partGlow, state3D.pos);
-  updateCrosshair(g_crosshairLine, state3D.initPos, θ);
-  updateTrail(g_trailLine, g_trailBuf, state3D.trail, state3D.trailEF, state3D.trailMode, θ);
-  updateArrow(g_velArrow, state3D.pos, state3D.vel, g_camera);
-  updateCamera(g_camera, g_orbit);
+  const earthFrame = (state3D.frameMode === 'earth');
+
+  // In Earth frame Earth stays still; particle shown at its Earth-fixed position.
+  g_earthGroup.rotation.y = earthFrame ? 0 : θ;
+  const wp = earthFrame ? rotateY(state3D.pos, -θ) : state3D.pos;
+  const wv = earthFrame ? rotateY(state3D.vel, -θ) : state3D.vel;
+
+  updateParticle(g_partMesh, g_partGlow, wp);
+  updateCrosshair(g_crosshairLine, state3D.initPos, earthFrame ? 0 : θ);
+  updateTrail(g_trailLine, g_trailBuf, state3D.trail, state3D.trailEF, state3D.trailMode, θ, earthFrame);
+  updateArrow(g_velArrow, wp, wv, g_camera);
+  updateCorArrow(g_corArrow, wp, wv, getOmegaVec(), θ, earthFrame, g_camera);
+  updateCamera(g_camera, g_orbit, state3D.frameMode, wp);
   g_renderer.render(g_scene, g_camera);
   updateInfoBox3D();
 }
@@ -142,6 +150,7 @@ function initAll3D() {
   g_trailBuf  = trailBuf;
 
   g_velArrow      = buildArrow(g_scene, 0xffffff);
+  g_corArrow      = buildArrow(g_scene, 0xff4444);
   g_crosshairLine = buildCrosshair(g_scene);
 
   state3D.initPos = { ...latLonToVec3(DEFAULT_LAT, DEFAULT_LON) };

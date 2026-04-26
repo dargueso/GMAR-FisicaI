@@ -2,6 +2,47 @@
 
 window.addEventListener('load', () => {
 
+  // ── Frame mode buttons ────────────────────────────────────────────────────
+  const btnFrameFixed  = document.getElementById('btn-frame-fixed');
+  const btnFrameEarth  = document.getElementById('btn-frame-earth');
+  const btnFrameFollow = document.getElementById('btn-frame-follow');
+
+  function setFrameMode(mode) {
+    if (mode === state3D.frameMode) return;
+    const prevMode = state3D.frameMode;
+    const θ        = earthAngle3D();
+    const orbit    = getOrbit();
+
+    if (prevMode === 'follow') {
+      // Leaving Follow: lock current camera world direction into absolute orbit angles.
+      const cam = getCamera();
+      const r   = cam.position.length();
+      orbit.theta    = Math.atan2(cam.position.x / r, cam.position.z / r);
+      orbit.phi      = Math.asin(Math.max(-1, Math.min(1, cam.position.y / r)));
+      orbit.thetaOff = 0;
+      orbit.phiOff   = 0;
+      // Camera is now expressed in Fixed-frame coords; compensate if heading to Earth.
+      if (mode === 'earth') orbit.theta -= θ;
+    } else if (mode === 'follow') {
+      // Entering Follow: reset offsets so camera centres on particle immediately.
+      orbit.thetaOff = 0;
+      orbit.phiOff   = 0;
+    } else {
+      // Fixed ↔ Earth: adjust theta to keep the same surface longitude in view.
+      orbit.theta += (mode === 'earth') ? -θ : +θ;
+    }
+
+    state3D.frameMode = mode;
+    btnFrameFixed.classList.toggle('active',  mode === 'fixed');
+    btnFrameEarth.classList.toggle('active',  mode === 'earth');
+    btnFrameFollow.classList.toggle('active', mode === 'follow');
+    renderFrame3D();
+  }
+
+  btnFrameFixed.addEventListener('click',  () => setFrameMode('fixed'));
+  btnFrameEarth.addEventListener('click',  () => setFrameMode('earth'));
+  btnFrameFollow.addEventListener('click', () => setFrameMode('follow'));
+
   // ── Trail mode buttons ────────────────────────────────────────────────────
   const btnTrailSpace = document.getElementById('btn-trail-space');
   const btnTrailEarth = document.getElementById('btn-trail-earth');

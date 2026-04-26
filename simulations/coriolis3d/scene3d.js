@@ -385,25 +385,45 @@ function updateCrosshair(crosshairLine, initPos, earthAngle) {
   }
 }
 
-// Trail points — two modes:
-//   'space': inertial world positions, copied directly.
-//   'earth': Earth-fixed positions, rotated by earthAngle to follow the globe.
-function updateTrail(trailLine, trailBuf, trailIn, trailEF, trailMode, earthAngle) {
+// Trail — 4 cases from (frameMode) × (trailMode):
+//
+//   Fixed + Space : trailIn directly (inertial world coords)
+//   Fixed + Earth : rotateY(trailEF[i], +θ)  — EF point rotated to inertial world
+//   Earth + Space : rotateY(trailIn[i], -θ)  — inertial point expressed in EF world
+//   Earth + Earth : trailEF directly (Earth-fixed coords = world coords when Earth is still)
+function updateTrail(trailLine, trailBuf, trailIn, trailEF, trailMode, earthAngle, earthFrame) {
   const earthSurface = (trailMode === 'earth');
-  const trail = earthSurface ? trailEF : trailIn;
-  const count = Math.min(trail.length, TRAIL_MAX);
+  const count = Math.min(trailIn.length, TRAIL_MAX);
+  const c = Math.cos(earthAngle), s = Math.sin(earthAngle);
 
-  if (earthSurface) {
-    const c = Math.cos(earthAngle), s = Math.sin(earthAngle);
+  if (!earthFrame && !earthSurface) {
+    // Fixed + Space: inertial positions directly.
     for (let i = 0; i < count; i++) {
-      const p = trail[i];
+      const p = trailIn[i];
+      trailBuf[i*3]   = p.x * SURFACE_RADIUS;
+      trailBuf[i*3+1] = p.y * SURFACE_RADIUS;
+      trailBuf[i*3+2] = p.z * SURFACE_RADIUS;
+    }
+  } else if (!earthFrame && earthSurface) {
+    // Fixed + Earth: EF positions rotated to inertial world by +θ.
+    for (let i = 0; i < count; i++) {
+      const p = trailEF[i];
       trailBuf[i*3]   = ( p.x*c + p.z*s) * SURFACE_RADIUS;
       trailBuf[i*3+1] =   p.y             * SURFACE_RADIUS;
       trailBuf[i*3+2] = (-p.x*s + p.z*c) * SURFACE_RADIUS;
     }
-  } else {
+  } else if (earthFrame && !earthSurface) {
+    // Earth + Space: inertial positions rotated to EF world by -θ.
     for (let i = 0; i < count; i++) {
-      const p = trail[i];
+      const p = trailIn[i];
+      trailBuf[i*3]   = ( p.x*c - p.z*s) * SURFACE_RADIUS;
+      trailBuf[i*3+1] =   p.y             * SURFACE_RADIUS;
+      trailBuf[i*3+2] = ( p.x*s + p.z*c) * SURFACE_RADIUS;
+    }
+  } else {
+    // Earth + Earth: EF positions directly (Earth is stationary).
+    for (let i = 0; i < count; i++) {
+      const p = trailEF[i];
       trailBuf[i*3]   = p.x * SURFACE_RADIUS;
       trailBuf[i*3+1] = p.y * SURFACE_RADIUS;
       trailBuf[i*3+2] = p.z * SURFACE_RADIUS;
@@ -414,33 +434,23 @@ function updateTrail(trailLine, trailBuf, trailIn, trailEF, trailMode, earthAngl
   trailLine.geometry.setDrawRange(0, count);
 }
 
-// Velocity arrow — pos and vel are inertial world coords.
-function updateArrow(arrowObj, pos, vel, camera) {
-  if (!pos || !vel) { arrowObj.mesh.visible = false; return; }
-  const speed = mag3(vel);
-  if (speed < 0.1) { arrowObj.mesh.visible = false; return; }
-
-  // Hide when particle is on the far side of Earth from the camera.
-  // A surface point at unit vector p is occluded when dot(cameraDir, p) < 1/r,
-  // where r is camera distance (exact tangent-line condition).
+// Shared low-level arrow writer. Checks occlusion (pos is the unit-sphere direction),
+// then writes shaft + 2-wing head into arrowObj.buf.
+function _setArrow(arrowObj, origin, dir3, length, camera, unitPos) {
   const r = camera.position.length();
-  const cx = camera.position.x / r, cy = camera.position.y / r, cz = camera.position.z / r;
-  if (cx*pos.x + cy*pos.y + cz*pos.z < 1 / r) {
-    arrowObj.mesh.visible = false;
-    return;
+  const cx = camera.position.x/r, cy = camera.position.y/r, cz = camera.position.z/r;
+  if (cx*unitPos.x + cy*unitPos.y + cz*unitPos.z < 1/r) {
+    arrowObj.mesh.visible = false; return;
   }
 
-  const origin = new THREE.Vector3(pos.x, pos.y, pos.z).multiplyScalar(SURFACE_RADIUS);
-  const d      = new THREE.Vector3(vel.x, vel.y, vel.z).normalize();
-  const length = Math.max(0.03, Math.min(0.08, speed / 3000));
+  const d        = dir3.clone().normalize();
   const tip      = origin.clone().addScaledVector(d, length);
   const headLen  = length * 0.32;
   const headBase = tip.clone().addScaledVector(d, -headLen);
 
   let perp = new THREE.Vector3().crossVectors(d, origin.clone().sub(camera.position));
-  if (perp.lengthSq() < 1e-12) {
-    perp.crossVectors(d, Math.abs(d.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0));
-  }
+  if (perp.lengthSq() < 1e-12)
+    perp.crossVectors(d, Math.abs(d.x) < 0.9 ? new THREE.Vector3(1,0,0) : new THREE.Vector3(0,1,0));
   perp.normalize().multiplyScalar(headLen * 0.42);
 
   const b = arrowObj.buf;
@@ -452,4 +462,45 @@ function updateArrow(arrowObj, pos, vel, camera) {
   b[15]=headBase.x-perp.x; b[16]=headBase.y-perp.y; b[17]=headBase.z-perp.z;
   arrowObj.geo.attributes.position.needsUpdate = true;
   arrowObj.mesh.visible = true;
+}
+
+// Velocity arrow — pos and vel are world coords (inertial or EF depending on frameMode).
+function updateArrow(arrowObj, pos, vel, camera) {
+  if (!pos || !vel) { arrowObj.mesh.visible = false; return; }
+  const speed = mag3(vel);
+  if (speed < 0.1)  { arrowObj.mesh.visible = false; return; }
+  const origin = new THREE.Vector3(pos.x, pos.y, pos.z).multiplyScalar(SURFACE_RADIUS);
+  const length = Math.max(0.03, Math.min(0.08, speed / 3000));
+  _setArrow(arrowObj, origin, new THREE.Vector3(vel.x, vel.y, vel.z), length, camera, pos);
+}
+
+// Coriolis arrow — a_cor = -2Ω × v_EF, horizontal component, in red.
+// posWorld / velWorld: world-frame coords (already adjusted for frameMode).
+// Ω: rotation vector {x,y,z}. θ: current Earth angle. earthFrame: boolean.
+function updateCorArrow(arrowObj, posWorld, velWorld, Ω, θ, earthFrame, camera) {
+  const Ω_mag = mag3(Ω);
+  if (!posWorld || !velWorld || Ω_mag < 1e-10) { arrowObj.mesh.visible = false; return; }
+
+  // EF velocity = inertial-in-EF-coords minus surface velocity
+  const posEF   = earthFrame ? posWorld : rotateY(posWorld, -θ);
+  const velInEF = earthFrame ? velWorld  : rotateY(velWorld, -θ);
+  const vSurf   = scale3(cross3(Ω, posEF), EARTH_RADIUS);
+  const velEF   = sub3(velInEF, vSurf);
+
+  // Horizontal Coriolis acceleration: -2Ω × v_EF projected onto the tangent plane
+  const corEF = projectTangent(scale3(cross3(Ω, velEF), -2), posEF);
+  const aMag  = mag3(corEF);
+  if (aMag < 1e-6) { arrowObj.mesh.visible = false; return; }
+
+  // Convert to world frame for display
+  const corWorld = earthFrame ? corEF : rotateY(corEF, θ);
+
+  // Length: proportional to |a_cor| / (2Ω|v_EF|), so it is always ≤ the velocity arrow.
+  const speed  = mag3(velEF);
+  const velLen = Math.max(0.03, Math.min(0.08, speed / 3000));
+  const corLen = Math.min(velLen, velLen * aMag / (2 * Ω_mag * speed + 1e-10));
+  if (corLen < 1e-4) { arrowObj.mesh.visible = false; return; }
+
+  const origin = new THREE.Vector3(posWorld.x, posWorld.y, posWorld.z).multiplyScalar(SURFACE_RADIUS);
+  _setArrow(arrowObj, origin, new THREE.Vector3(corWorld.x, corWorld.y, corWorld.z), corLen, camera, posWorld);
 }
