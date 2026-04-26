@@ -13,6 +13,9 @@ const state3D = {
   timeScale:   1,
   frameMode:   'fixed',  // 'fixed' | 'earth' | 'follow'
   trailMode:   'space',  // 'space' | 'earth'
+  showVelAbs:   true,    // velocity arrow in inertial frame (white)
+  showVelEarth: false,   // velocity arrow in Earth's rotating frame (cyan)
+  showCoriolis: false,    // Coriolis acceleration arrow (red)
   pos:         null,   // inertial world unit vector
   vel:         null,   // m/s — inertial frame
   initPos:     null,   // Earth-fixed unit vector at t=0 (= inertial at t=0)
@@ -26,7 +29,7 @@ const state3D = {
 
 let g_renderer, g_scene, g_camera, g_earthGroup, g_earthMesh;
 let g_partMesh, g_partGlow, g_trailLine, g_trailBuf;
-let g_velArrow, g_corArrow, g_crosshairLine, g_orbit;
+let g_velArrow, g_velEFArrow, g_corArrow, g_crosshairLine, g_orbit;
 
 function getOmegaVec() {
   if (state3D.noRotation) return { x: 0, y: 0, z: 0 };
@@ -60,13 +63,20 @@ function renderFrame3D() {
   g_earthGroup.rotation.y = earthFrame ? 0 : θ;
   const wp = earthFrame ? rotateY(state3D.pos, -θ) : state3D.pos;
   const wv = earthFrame ? rotateY(state3D.vel, -θ) : state3D.vel;
+  // Earth-frame velocity in current world coords: v_EF = v_inertial - Ω × r.
+  // Works in either inertial or EF coords because Ω is along world-Y in both.
+  const Ω    = getOmegaVec();
+  const wvEF = sub3(wv, scale3(cross3(Ω, wp), EARTH_RADIUS));
 
   updateParticle(g_partMesh, g_partGlow, wp);
   updateCrosshair(g_crosshairLine, state3D.initPos, earthFrame ? 0 : θ);
   updateTrail(g_trailLine, g_trailBuf, state3D.trail, state3D.trailEF, state3D.trailMode, θ, earthFrame);
-  updateArrow(g_velArrow, wp, wv, g_camera);
-  updateCorArrow(g_corArrow, wp, wv, getOmegaVec(), θ, earthFrame, g_camera);
-  updateCamera(g_camera, g_orbit, state3D.frameMode, wp);
+
+  if (state3D.showVelAbs)   updateArrow(g_velArrow,   wp, wv,   g_camera); else g_velArrow.mesh.visible   = false;
+  if (state3D.showVelEarth) updateArrow(g_velEFArrow, wp, wvEF, g_camera); else g_velEFArrow.mesh.visible = false;
+  if (state3D.showCoriolis) updateCorArrow(g_corArrow, wp, wv, Ω, θ, earthFrame, g_camera); else g_corArrow.mesh.visible = false;
+
+  updateCamera(g_camera, g_orbit, state3D.frameMode, wp, wv);
   g_renderer.render(g_scene, g_camera);
   updateInfoBox3D();
 }
@@ -150,6 +160,7 @@ function initAll3D() {
   g_trailBuf  = trailBuf;
 
   g_velArrow      = buildArrow(g_scene, 0xffffff);
+  g_velEFArrow    = buildArrow(g_scene, 0x44ddff);
   g_corArrow      = buildArrow(g_scene, 0xff4444);
   g_crosshairLine = buildCrosshair(g_scene);
 

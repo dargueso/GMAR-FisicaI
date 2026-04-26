@@ -24,9 +24,20 @@ window.addEventListener('load', () => {
       // Camera is now expressed in Fixed-frame coords; compensate if heading to Earth.
       if (mode === 'earth') orbit.theta -= θ;
     } else if (mode === 'follow') {
-      // Entering Follow: reset offsets so camera centres on particle immediately.
+      // Entering Follow: reset user offsets and seed the smooth-tracking angles
+      // from the particle's current position so the camera starts directly above.
       orbit.thetaOff = 0;
       orbit.phiOff   = 0;
+      if (state3D.pos) {
+        orbit.followTheta = Math.atan2(state3D.pos.x, state3D.pos.z);
+        orbit.followPhi   = Math.asin(Math.max(-1, Math.min(1, state3D.pos.y)));
+        // Prime the pole-fallback up value.
+        const ppx = state3D.pos.x, ppy = state3D.pos.y, ppz = state3D.pos.z;
+        const ux = -ppy*ppx, uy = 1 - ppy*ppy, uz = -ppy*ppz;
+        const uLen = Math.sqrt(ux*ux + uy*uy + uz*uz);
+        if (uLen > 1e-6) { orbit.prevUpX = ux/uLen; orbit.prevUpY = uy/uLen; orbit.prevUpZ = uz/uLen; }
+        else             { orbit.prevUpX = 0; orbit.prevUpY = 1; orbit.prevUpZ = 0; }
+      }
     } else {
       // Fixed ↔ Earth: adjust theta to keep the same surface longitude in view.
       orbit.theta += (mode === 'earth') ? -θ : +θ;
@@ -56,6 +67,19 @@ window.addEventListener('load', () => {
 
   btnTrailSpace.addEventListener('click', () => setTrailMode('space'));
   btnTrailEarth.addEventListener('click', () => setTrailMode('earth'));
+
+  // ── Arrow toggles (independent on/off) ────────────────────────────────────
+  function bindArrowToggle(btnId, stateKey) {
+    const btn = document.getElementById(btnId);
+    btn.addEventListener('click', () => {
+      state3D[stateKey] = !state3D[stateKey];
+      btn.classList.toggle('active', state3D[stateKey]);
+      renderFrame3D();
+    });
+  }
+  bindArrowToggle('btn-arrow-vel-abs',   'showVelAbs');
+  bindArrowToggle('btn-arrow-vel-earth', 'showVelEarth');
+  bindArrowToggle('btn-arrow-cor',       'showCoriolis');
 
   // ── Period slider ─────────────────────────────────────────────────────────
   const sliderPeriod  = document.getElementById('slider-period');
