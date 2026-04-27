@@ -14,6 +14,9 @@ function initOrbit(canvas) {
     prevUpX:    0,   // last valid camera.up — fallback when velocity is zero
     prevUpY:    1,
     prevUpZ:    0,
+    prevFwdX:   1,   // last valid e_fwd (velocity tangent) for follow mode
+    prevFwdY:   0,
+    prevFwdZ:   0,
   };
 
   canvas.addEventListener('mousedown', (e) => {
@@ -31,14 +34,17 @@ function initOrbit(canvas) {
 
     const fm = typeof state3D !== 'undefined' ? state3D.frameMode : 'fixed';
     if (fm === 'follow') {
-      orbit.thetaOff -= dx * 0.006;
+      // Drag-the-particle: thetaOff = e_right offset, phiOff = e_fwd offset of camera
+      // direction in the particle's local tangent plane. Drag right → particle on the
+      // right; drag down → particle lower. Earth's centre stays fixed at origin.
+      orbit.thetaOff += dx * 0.006;
       orbit.phiOff   += dy * 0.006;
-      // Clamp so total camera elevation stays away from poles.
-      if (typeof state3D !== 'undefined' && state3D.pos) {
-        const phi_p = Math.asin(Math.max(-1, Math.min(1, state3D.pos.y)));
-        const eps   = 0.08;
-        orbit.phiOff = Math.max(-Math.PI/2 + eps - phi_p,
-                         Math.min( Math.PI/2 - eps - phi_p, orbit.phiOff));
+      // Clamp combined magnitude so camera stays on the upper hemisphere of the local frame.
+      const maxR = Math.PI/2 - 0.05;
+      const r2 = orbit.thetaOff*orbit.thetaOff + orbit.phiOff*orbit.phiOff;
+      if (r2 > maxR*maxR) {
+        const s = maxR / Math.sqrt(r2);
+        orbit.thetaOff *= s; orbit.phiOff *= s;
       }
     } else {
       orbit.theta -= dx * 0.006;
@@ -77,78 +83,92 @@ function resetOrbit(orbit, initPos) {
   else             { orbit.prevUpX = 0; orbit.prevUpY = 1; orbit.prevUpZ = 0; }
 }
 
-// Position camera. All modes look at Earth's centre (0,0,0).
+// Position camera.
 //
-//   Fixed / Earth: camera at absolute (theta, phi), camera.up = geographic north.
+//   Fixed / Earth: camera at absolute (theta, phi) on a sphere around origin,
+//                  camera.up = geographic north, lookAt origin.
 //
-//   Follow: camera placed in the direction of (particle + thetaOff/phiOff).
-//   camera.up = particle velocity projected onto the camera plane.
-//   The velocity parallel-transports continuously through the poles, so the
-//   view never flips or spins when the particle crosses a pole.
-//   velWorld must be supplied (inertial-frame velocity, same space as particleWorldPos).
+//   Follow:        Earth's centre stays fixed at the origin. The camera orbits a
+//                  small distance away from the particle's radial direction so that
+//                  the user can drag the particle around the screen. Offsets are
+//                  expressed in the particle's local tangent plane:
+//                    phiOff  = projection along  e_fwd  (drag down → +)
+//                    thetaOff= projection along  e_right (drag right → +)
+//                  Camera direction:
+//                    n = cos(R)·e_up + sinc(R)·(phiOff·e_fwd + thetaOff·e_right)
+//                    where R = √(phiOff² + thetaOff²), so n is a unit vector that
+//                    leaves e_up at the rate phiOff/thetaOff request.
+//                  The local frame parallel-transports along the geodesic, so the
+//                  particle's screen position stays locked even as it moves; pole
+//                  crossings are smooth because every basis vector evolves smoothly.
 function updateCamera(camera, orbit, mode, particleWorldPos, velWorld) {
-  let nx, ny, nz;
-
   if (mode === 'follow') {
-    let px = particleWorldPos.x, py = particleWorldPos.y, pz = particleWorldPos.z;
-    const pLen = Math.sqrt(px*px + py*py + pz*pz);
-    if (pLen > 1e-6) { px /= pLen; py /= pLen; pz /= pLen; }
+    // e_up — radial direction at particle
+    let upX = particleWorldPos.x, upY = particleWorldPos.y, upZ = particleWorldPos.z;
+    const pLen = Math.sqrt(upX*upX + upY*upY + upZ*upZ);
+    if (pLen > 1e-6) { upX /= pLen; upY /= pLen; upZ /= pLen; }
 
-    // thetaOff: rotate camera direction around world-Y.
-    const ct = Math.cos(orbit.thetaOff), st = Math.sin(orbit.thetaOff);
-    const d1x =  px*ct + pz*st;
-    const d1y =  py;
-    const d1z = -px*st + pz*ct;
-
-    // phiOff: elevate/depress camera relative to particle latitude.
-    const eLen = Math.sqrt(d1x*d1x + d1z*d1z);
-    if (eLen > 1e-6) {
-      const cp = Math.cos(orbit.phiOff), sp = Math.sin(orbit.phiOff);
-      nx = d1x*cp - (d1x*d1y/eLen)*sp;
-      ny = d1y*cp + eLen*sp;
-      nz = d1z*cp - (d1z*d1y/eLen)*sp;
-    } else {
-      nx = d1x; ny = d1y; nz = d1z;
+    // e_fwd — velocity tangent (with prev-fallback when speed ≈ 0)
+    let fwdX = orbit.prevFwdX, fwdY = orbit.prevFwdY, fwdZ = orbit.prevFwdZ;
+    if (velWorld) {
+      const vx = velWorld.x, vy = velWorld.y, vz = velWorld.z;
+      const vDotUp = vx*upX + vy*upY + vz*upZ;
+      const tanX = vx - vDotUp*upX, tanY = vy - vDotUp*upY, tanZ = vz - vDotUp*upZ;
+      const tLen = Math.sqrt(tanX*tanX + tanY*tanY + tanZ*tanZ);
+      if (tLen > 0.1) {
+        fwdX = tanX/tLen; fwdY = tanY/tLen; fwdZ = tanZ/tLen;
+        orbit.prevFwdX = fwdX; orbit.prevFwdY = fwdY; orbit.prevFwdZ = fwdZ;
+      }
     }
 
-  } else {
-    const phiPolar = Math.PI / 2 - orbit.phi;
-    nx = Math.sin(phiPolar) * Math.sin(orbit.theta);
-    ny = Math.cos(phiPolar);
-    nz = Math.sin(phiPolar) * Math.cos(orbit.theta);
+    // e_right = e_up × e_fwd
+    const rightX = upY*fwdZ - upZ*fwdY;
+    const rightY = upZ*fwdX - upX*fwdZ;
+    const rightZ = upX*fwdY - upY*fwdX;
+
+    // Camera direction: tilt e_up by (phiOff, thetaOff) in the (e_fwd, e_right) plane.
+    const a = orbit.phiOff, b = orbit.thetaOff;
+    const r = Math.sqrt(a*a + b*b);
+    const cR = Math.cos(r);
+    const sinc = (r > 1e-6) ? Math.sin(r) / r : 1;     // sin(r)/r, → 1 as r → 0
+    const tFwd = sinc * a, tRight = sinc * b;
+    const nx = cR*upX + tFwd*fwdX + tRight*rightX;
+    const ny = cR*upY + tFwd*fwdY + tRight*rightY;
+    const nz = cR*upZ + tFwd*fwdZ + tRight*rightZ;
+
+    camera.position.set(nx*orbit.radius, ny*orbit.radius, nz*orbit.radius);
+
+    // camera.up = e_fwd projected ⊥ to camera direction (= -n, since lookAt(origin)).
+    // Equivalent to e_fwd − (e_fwd·n)·n.
+    const fwdDotN = fwdX*nx + fwdY*ny + fwdZ*nz;
+    const upPx = fwdX - fwdDotN*nx;
+    const upPy = fwdY - fwdDotN*ny;
+    const upPz = fwdZ - fwdDotN*nz;
+    const upPLen = Math.sqrt(upPx*upPx + upPy*upPy + upPz*upPz);
+    if (upPLen > 1e-6) {
+      orbit.prevUpX = upPx/upPLen; orbit.prevUpY = upPy/upPLen; orbit.prevUpZ = upPz/upPLen;
+    }
+    camera.up.set(orbit.prevUpX, orbit.prevUpY, orbit.prevUpZ);
+    camera.lookAt(0, 0, 0);
+    return;
   }
+
+  // ── Fixed / Earth modes ─────────────────────────────────────────────
+  const phiPolar = Math.PI / 2 - orbit.phi;
+  const nx = Math.sin(phiPolar) * Math.sin(orbit.theta);
+  const ny = Math.cos(phiPolar);
+  const nz = Math.sin(phiPolar) * Math.cos(orbit.theta);
 
   camera.position.set(nx * orbit.radius, ny * orbit.radius, nz * orbit.radius);
 
-  if (mode === 'follow' && velWorld) {
-    // camera.up = velocity direction projected perpendicular to the camera direction.
-    // Velocity parallel-transports smoothly through poles — no flip, no spin.
-    const vLen = Math.sqrt(velWorld.x*velWorld.x + velWorld.y*velWorld.y + velWorld.z*velWorld.z);
-    if (vLen > 0.1) {
-      const vx = velWorld.x/vLen, vy = velWorld.y/vLen, vz = velWorld.z/vLen;
-      const d  = vx*nx + vy*ny + vz*nz;          // component along camera direction
-      const ux = vx - d*nx, uy = vy - d*ny, uz = vz - d*nz;
-      const uLen = Math.sqrt(ux*ux + uy*uy + uz*uz);
-      if (uLen > 1e-6) {
-        orbit.prevUpX = ux/uLen; orbit.prevUpY = uy/uLen; orbit.prevUpZ = uz/uLen;
-        camera.up.set(ux/uLen, uy/uLen, uz/uLen);
-      } else {
-        camera.up.set(orbit.prevUpX, orbit.prevUpY, orbit.prevUpZ);
-      }
-    } else {
-      camera.up.set(orbit.prevUpX, orbit.prevUpY, orbit.prevUpZ);
-    }
-
+  // camera.up = geographic north (worldY projected ⊥ to camera direction).
+  const ux = -ny*nx, uy = 1 - ny*ny, uz = -ny*nz;
+  const uLen = Math.sqrt(ux*ux + uy*uy + uz*uz);
+  if (uLen > 1e-6) {
+    orbit.prevUpX = ux/uLen; orbit.prevUpY = uy/uLen; orbit.prevUpZ = uz/uLen;
+    camera.up.set(ux/uLen, uy/uLen, uz/uLen);
   } else {
-    // Fixed / Earth: geographic north (worldY projected ⊥ to camera direction).
-    const ux = -ny*nx, uy = 1 - ny*ny, uz = -ny*nz;
-    const uLen = Math.sqrt(ux*ux + uy*uy + uz*uz);
-    if (uLen > 1e-6) {
-      orbit.prevUpX = ux/uLen; orbit.prevUpY = uy/uLen; orbit.prevUpZ = uz/uLen;
-      camera.up.set(ux/uLen, uy/uLen, uz/uLen);
-    } else {
-      camera.up.set(orbit.prevUpX, orbit.prevUpY, orbit.prevUpZ);
-    }
+    camera.up.set(orbit.prevUpX, orbit.prevUpY, orbit.prevUpZ);
   }
 
   camera.lookAt(0, 0, 0);

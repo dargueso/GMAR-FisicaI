@@ -4,13 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Coriolis Effect — 3D Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0f1117;
-      color: #e0e0e0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -21,7 +46,7 @@
 
     header { text-align: center; }
     header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
-    header p  { font-size: 0.85rem; color: #888; margin-top: 4px; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
 
     .main-layout {
       display: flex;
@@ -39,15 +64,18 @@
       aspect-ratio: 1 / 1;
     }
 
+    /* Canvas stays dark in both themes — the 3D scene is set in space. */
     #canvas3d {
       width: 100%;
       height: 100%;
       display: block;
       cursor: grab;
       border-radius: 8px;
+      background: #0f1117;
     }
     #canvas3d:active { cursor: grabbing; }
 
+    /* Info-box overlays the dark canvas, so it stays dark in both themes. */
     .info-box {
       position: absolute;
       top: 12px;
@@ -66,7 +94,8 @@
     .controls {
       width: 100%;
       max-width: 720px;
-      background: #161b22;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
       border-radius: 12px;
       padding: 20px 24px;
       display: flex;
@@ -83,21 +112,21 @@
 
     .control-label {
       font-size: 0.8rem;
-      color: #888;
+      color: var(--clr-text-muted);
       width: 130px;
       flex-shrink: 0;
     }
 
     input[type=range] {
       flex: 1;
-      accent-color: #2a7a8a;
+      accent-color: var(--clr-accent);
       cursor: pointer;
     }
     input[type=range]:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .control-value {
       font-size: 0.8rem;
-      color: #e0e0e0;
+      color: var(--clr-text);
       width: 80px;
       text-align: right;
       font-variant-numeric: tabular-nums;
@@ -112,20 +141,21 @@
 
     button {
       padding: 8px 20px;
-      border: 1px solid #2a7a8a;
+      border: 1px solid var(--clr-accent);
       border-radius: 6px;
       background: transparent;
-      color: #e0e0e0;
+      color: var(--clr-text);
+      font-family: inherit;
       font-size: 0.85rem;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, color 0.15s;
     }
-    button:hover  { background: #1a3a4a; }
-    button.active { background: #2a7a8a; color: #fff; }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
 
     .hint {
       font-size: 0.75rem;
-      color: #555;
+      color: var(--clr-text-muted);
       text-align: center;
     }
 
