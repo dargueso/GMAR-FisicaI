@@ -76,7 +76,7 @@ function renderFrame3D() {
   if (state3D.showVelEarth) updateArrow(g_velEFArrow, wp, wvEF, g_camera); else g_velEFArrow.mesh.visible = false;
   if (state3D.showCoriolis) updateCorArrow(g_corArrow, wp, wv, Ω, θ, earthFrame, g_camera); else g_corArrow.mesh.visible = false;
 
-  updateCamera(g_camera, g_orbit, state3D.frameMode, wp, wv);
+  updateCamera(g_camera, g_orbit, state3D.frameMode, wp);
   g_renderer.render(g_scene, g_camera);
   updateInfoBox3D();
 }

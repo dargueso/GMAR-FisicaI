@@ -24,11 +24,12 @@ window.addEventListener('load', () => {
       // Camera is now expressed in Fixed-frame coords; compensate if heading to Earth.
       if (mode === 'earth') orbit.theta -= θ;
     } else if (mode === 'follow') {
-      // Entering Follow: reset offsets so the camera starts directly above the particle.
-      // updateCamera will derive the local frame (e_up, e_fwd, e_right) from velocity
-      // on the next render.
+      // Entering Follow: reset offsets so the camera starts directly above the
+      // particle, and reseed the local frame so camera.up = geographic north.
       orbit.thetaOff = 0;
       orbit.phiOff   = 0;
+      const p = state3D.pos || state3D.initPos;
+      if (p) seedFollowFrame(orbit, p);
     } else {
       // Fixed ↔ Earth: adjust theta to keep the same surface longitude in view.
       orbit.theta += (mode === 'earth') ? -θ : +θ;
