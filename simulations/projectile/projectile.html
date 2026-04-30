@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projectile Motion — Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 4 / 3;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--clr-text-muted);
+      width: 150px;
+      flex-shrink: 0;
+    }
+
+    input[type=number] {
+      flex: 1;
+      min-width: 0;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=number]:focus {
+      outline: none;
+      border-color: var(--clr-accent);
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.primary { background: var(--clr-accent); color: #fff; }
+    button.primary:hover { background: var(--clr-accent); filter: brightness(1.08); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 12px 14px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-key   { color: var(--clr-text-muted); }
+    .stat-value {
+      color: var(--clr-text);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .legend-empty {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+      padding: 8px 0;
+    }
+    .legend-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      padding: 6px 8px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+    }
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-params {
+      flex: 1;
+      color: var(--clr-text);
+      font-variant-numeric: tabular-nums;
+    }
+    .legend-results {
+      color: var(--clr-text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .legend-remove {
+      padding: 0 8px;
+      border: none;
+      background: transparent;
+      color: var(--clr-text-muted);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .legend-remove:hover { color: var(--clr-text); background: transparent; }
+
+    .tooltip {
+      position: absolute;
+      background: var(--clr-surface);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      white-space: nowrap;
+    }
+    .tip-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.6; }
+    .tip-key { color: var(--clr-text-muted); }
+    .tip-val { color: var(--clr-text); }
+
+    .equations {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .equations h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--clr-text);
+    }
+    .eq-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 640px) {
+      .eq-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (min-width: 1100px) {
+      .equations { max-width: 1080px; }
+      .eq-grid   { grid-template-columns: repeat(4, 1fr); }
+    }
+    .eq-title {
+      font-size: 0.72rem;
+      color: var(--clr-text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .eq {
+      font-size: 1rem;
+      line-height: 2.1;
+      color: var(--clr-text);
+    }
+    .eq-note {
+      font-size: 0.72rem;
+      color: var(--clr-text-muted);
+      margin-top: 4px;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1080px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; max-width: 700px; min-width: 420px; }
+      .controls { flex: 0 0 320px; max-width: 320px; padding: 18px; }
+      .control-label { width: 110px; }
+      .legend-results { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Projectile Motion Simulator</h1>
+  <p>Constant gravity, no air resistance. Launch from height h₀ over a flat ground.</p>
+</header>
+
+<div class="main-layout">
+
+<div class="canvas-container">
+  <canvas id="canvas"></canvas>
+  <div id="apex-tooltip" class="tooltip" hidden></div>
+</div>
+
+<div class="controls">
+
+  <div class="control-row">
+    <span class="control-label">Initial speed v₀</span>
+    <input type="number" id="inp-v0" value="20" step="0.1" min="0">
+    <span class="stat-key">m/s</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Launch angle θ</span>
+    <input type="number" id="inp-angle" value="45" step="1" min="-90" max="90">
+    <span class="stat-key">°</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Gravity g</span>
+    <input type="number" id="inp-g" value="9.81" step="0.01" min="0">
+    <span class="stat-key">m/s²</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Initial height h₀</span>
+    <input type="number" id="inp-h0" value="0" step="0.1" min="0">
+    <span class="stat-key">m</span>
+  </div>
+
+  <div class="stats">
+    <span class="stat-key">Time to apex</span>
+    <span class="stat-value" id="stat-tapex">—</span>
+    <span class="stat-key">Maximum height</span>
+    <span class="stat-value" id="stat-hmax">—</span>
+    <span class="stat-key">Flight time</span>
+    <span class="stat-value" id="stat-tflight">—</span>
+    <span class="stat-key">Range</span>
+    <span class="stat-value" id="stat-range">—</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Vectors</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-show-v">v</button>
+      <button id="btn-show-vx">v<sub>x</sub></button>
+      <button id="btn-show-vy">v<sub>y</sub></button>
+    </div>
+  </div>
+
+  <div class="button-row">
+    <button id="btn-launch" class="primary">Launch</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-clear">Clear all</button>
+  </div>
+
+  <div class="legend">
+    <ul id="legend-list" class="legend-list"></ul>
+  </div>
+
+  <p class="hint">Dashed line = current parameters · Hover the apex marker for details · Enter = Launch</p>
+</div>
+
+</div>
+
+<section class="equations">
+  <h2>Equations of motion (no air resistance)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Position</div>
+      <div class="eq" data-tex="x(t) = v_0 \cos\alpha \, t"></div>
+      <div class="eq" data-tex="y(t) = h_0 + v_0 \sin\alpha \, t - \tfrac{1}{2}\, g\, t^2"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Velocity</div>
+      <div class="eq" data-tex="v_x(t) = v_0 \cos\alpha"></div>
+      <div class="eq" data-tex="v_y(t) = v_0 \sin\alpha - g\, t"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Apex (highest point)</div>
+      <div class="eq" data-tex="t_\mathrm{apex} = \dfrac{v_0 \sin\alpha}{g}"></div>
+      <div class="eq" data-tex="H = h_0 + \dfrac{(v_0 \sin\alpha)^2}{2g}"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Flight time &amp; reach</div>
+      <div class="eq" data-tex="t_\mathrm{flight} = \dfrac{v_0 \sin\alpha + \sqrt{(v_0 \sin\alpha)^2 + 2\, g\, h_0}}{g}"></div>
+      <div class="eq" data-tex="R = v_0 \cos\alpha \, t_\mathrm{flight}"></div>
+      <div class="eq" data-tex="x_\mathrm{max} = \dfrac{v_0^{\,2}\, \sin 2\alpha}{g}"></div>
+      <div class="eq-note">x<sub>max</sub> is the special case for h<sub>0</sub> = 0.</div>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+  document.querySelectorAll('.eq[data-tex]').forEach(el => {
+    katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+  });
+</script>
+
+<script src="physics.js"></script>
+<script src="scene.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>
