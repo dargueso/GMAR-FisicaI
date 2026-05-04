@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apollo &amp; Artemis trajectories — Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 1 / 1;
+    }
+
+    /* Canvas stays dark in both themes — same visual language as the other sims. */
+    #canvas2d {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+      background: #0f1117;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      width: 70px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--clr-accent);
+      cursor: pointer;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: var(--clr-text);
+      width: 80px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+      white-space: pre-line;
+      line-height: 1.5;
+    }
+
+    /* Mission list — one row per mission with a colour swatch + metadata. */
+    .mission-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-top: 1px solid var(--clr-border);
+      border-bottom: 1px solid var(--clr-border);
+      padding: 8px 0;
+    }
+    .mission-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 6px;
+      cursor: pointer;
+      border-radius: 4px;
+      user-select: none;
+    }
+    .mission-item:hover { background: var(--clr-accent-light); }
+    .mission-item input { margin: 0; cursor: pointer; }
+    .mission-item .dot {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .mission-item .info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .mission-item .info .title {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .mission-item .info .meta {
+      font-size: 0.7rem;
+      color: var(--clr-text-muted);
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1100px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; max-width: 700px; min-width: 420px; }
+      .controls { flex: 0 0 340px; max-width: 340px; padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Apollo &amp; Artemis lunar trajectories</h1>
+  <p>Earth–Moon rotating frame — toggle missions individually or by program</p>
+</header>
+
+<div class="main-layout">
+
+  <div class="canvas-container">
+    <canvas id="canvas2d"></canvas>
+  </div>
+
+  <div class="controls" id="controls"></div>
+
+</div>
+
+<script src="missions.js"></script>
+<script src="main.js"></script>
+
+</body>
+</html>
