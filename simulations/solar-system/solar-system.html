@@ -199,6 +199,18 @@
       gap: 6px;
       white-space: nowrap;
     }
+    /* Clickable row label acts as a body on/off toggle. Inactive bodies
+       are dimmed; active ones are full-strength. */
+    .param-cell.row-label.toggle {
+      cursor: pointer;
+      user-select: none;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: opacity 0.15s, background 0.15s;
+      opacity: 0.4;
+    }
+    .param-cell.row-label.toggle:hover { background: var(--clr-accent-light); }
+    .param-cell.row-label.toggle.active { opacity: 1; }
     .param-cell.row-label .dot {
       display: inline-block;
       width: 10px;

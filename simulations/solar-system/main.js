@@ -1,8 +1,9 @@
 // simulations/solar-system/main.js
 //
-// Animation loop, rendering, and UI wiring for the Sun · Earth · Moon · Jupiter
+// Animation loop, rendering, and UI wiring for the Sun + 8 planets + Moon
 // simulation. Defaults give a stable hierarchical orbit. Each slider live-
-// re-initialises the system from the current parameter values.
+// re-initialises the system from the current parameter values; clicking a
+// row label in the parameter grid toggles that body on/off.
 
 const TRAIL_MAX = 1200;
 
@@ -19,10 +20,16 @@ const state = {
 // has no orbit so its Distance/Speed cells are blank).
 //   [paramKey, min, max, step]
 const PARAM_TABLE = [
-  { name: 'Sun',     mass: ['sunMass',      200, 3000, 10  ], dist: null,                              speed: null                          },
-  { name: 'Earth',   mass: ['earthMass',    1,    100,  1  ], dist: ['earthRadius',   80,  320,   1  ], speed: ['earthSpeed',   0.5, 1.5, 0.01] },
-  { name: 'Moon',    mass: ['moonMass',     0.01,   5,  0.01], dist: ['moonRadius',    5,   30,   0.5], speed: ['moonSpeed',    0.5, 1.5, 0.01] },
-  { name: 'Jupiter', mass: ['jupiterMass',  5,    300,  1  ], dist: ['jupiterRadius',  80, 800,   1  ], speed: ['jupiterSpeed', 0.5, 1.5, 0.01] },
+  { name: 'Sun',     mass: ['sunMass',      200,  3000, 10  ], dist: null,                                speed: null                              },
+  { name: 'Mercury', mass: ['mercuryMass',  0.1,    30,  0.1], dist: ['mercuryRadius',  30,  300,  1   ], speed: ['mercurySpeed', 0.5, 1.5, 0.01] },
+  { name: 'Venus',   mass: ['venusMass',      1,    60,  0.1], dist: ['venusRadius',    60,  300,  1   ], speed: ['venusSpeed',   0.5, 1.5, 0.01] },
+  { name: 'Earth',   mass: ['earthMass',      1,   100,  1  ], dist: ['earthRadius',    80,  320,  1   ], speed: ['earthSpeed',   0.5, 1.5, 0.01] },
+  { name: 'Moon',    mass: ['moonMass',    0.01,     5,  0.01], dist: ['moonRadius',     5,   30,  0.5 ], speed: ['moonSpeed',    0.5, 1.5, 0.01] },
+  { name: 'Mars',    mass: ['marsMass',     0.5,    40,  0.1], dist: ['marsRadius',    100,  450,  1   ], speed: ['marsSpeed',    0.5, 1.5, 0.01] },
+  { name: 'Jupiter', mass: ['jupiterMass',    5,   300,  1  ], dist: ['jupiterRadius',  80,  800,  1   ], speed: ['jupiterSpeed', 0.5, 1.5, 0.01] },
+  { name: 'Saturn',  mass: ['saturnMass',     1,   200,  1  ], dist: ['saturnRadius',  400, 1100,  5   ], speed: ['saturnSpeed',  0.5, 1.5, 0.01] },
+  { name: 'Uranus',  mass: ['uranusMass',     1,   100,  1  ], dist: ['uranusRadius',  600, 1300,  5   ], speed: ['uranusSpeed',  0.5, 1.5, 0.01] },
+  { name: 'Neptune', mass: ['neptuneMass',    1,   100,  1  ], dist: ['neptuneRadius', 800, 1500,  5   ], speed: ['neptuneSpeed', 0.5, 1.5, 0.01] },
 ];
 
 let canvas, ctx;
@@ -45,11 +52,14 @@ function resize() {
 
 // Re-initialise body positions/velocities from current params.
 // preserveActive=true keeps each body's on/off toggle state across edits.
+// Match by name so the body lineup can change without losing toggle state.
 function applyParams(preserveActive = true) {
   const newBodies = buildBodies(state.params);
-  if (preserveActive && state.bodies.length === newBodies.length) {
-    for (let i = 0; i < newBodies.length; i++) {
-      newBodies[i].active = state.bodies[i].active;
+  if (preserveActive && state.bodies.length) {
+    const oldByName = new Map(state.bodies.map(b => [b.name, b]));
+    for (const nb of newBodies) {
+      const ob = oldByName.get(nb.name);
+      if (ob) nb.active = ob.active;
     }
   }
   state.bodies = newBodies;
@@ -103,10 +113,16 @@ function render() {
   // Auto-fit so the largest orbit stays visible.
   const p = state.params;
   const maxReach = Math.max(
-    p.earthRadius + p.moonRadius + 30,
-    p.jupiterRadius + 30,
+    p.mercuryRadius,
+    p.venusRadius,
+    p.earthRadius + p.moonRadius,
+    p.marsRadius,
+    p.jupiterRadius,
+    p.saturnRadius,
+    p.uranusRadius,
+    p.neptuneRadius,
     260,
-  );
+  ) + 30;
   const scale = Math.min(W, H) / (maxReach * 2.0);
 
   // Trails
@@ -148,7 +164,7 @@ function render() {
   let ry = 22;
   ctx.fillText(`t  = ${state.t.toFixed(1)}`, 14, ry); ry += 18;
   const activeCount = state.bodies.filter(b => b.active).length;
-  ctx.fillText(`bodies: ${activeCount} / 4`, 14, ry); ry += 18;
+  ctx.fillText(`bodies: ${activeCount} / ${state.bodies.length}`, 14, ry); ry += 18;
   for (const b of state.bodies) {
     if (!b.active) continue;
     const v = Math.hypot(b.vx, b.vy);
@@ -174,30 +190,8 @@ function buildControls() {
   const panel = document.getElementById('controls');
   panel.innerHTML = '';
 
-  // Body toggles
-  const togRow = document.createElement('div');
-  togRow.className = 'control-row';
-  togRow.style.gap = '6px';
-  const togLabel = document.createElement('span');
-  togLabel.className = 'control-label';
-  togLabel.textContent = 'Bodies';
-  togRow.appendChild(togLabel);
-  for (const b of state.bodies) {
-    const btn = document.createElement('button');
-    btn.textContent = b.name;
-    btn.style.flex = '1';
-    btn.style.padding = '6px 8px';
-    btn.style.borderColor = b.color;
-    if (b.active) btn.classList.add('active');
-    btn.addEventListener('click', () => {
-      setActive(b.name, !b.active);
-      btn.classList.toggle('active', b.active);
-    });
-    togRow.appendChild(btn);
-  }
-  panel.appendChild(togRow);
-
-  // Parameter table — body × parameter grid
+  // Parameter table — body × parameter grid. Click a row label to toggle
+  // that body on/off.
   panel.appendChild(buildParamTable());
 
   // Time scale (full-width slider, separate from the body grid)
@@ -232,8 +226,8 @@ function buildControls() {
   panel.appendChild(hint);
 }
 
-// Build the body × parameter grid. Rows: Sun, Earth, Moon, Jupiter.
-// Columns: Mass, Distance, Speed.
+// Build the body × parameter grid. Rows: Sun + 8 planets + Moon.
+// Columns: Mass, Distance, Speed. Row label is clickable as a toggle.
 function buildParamTable() {
   const table = document.createElement('div');
   table.className = 'param-table';
@@ -264,8 +258,17 @@ function cellHeader(text) {
 
 function cellRowLabel(name, color) {
   const d = document.createElement('div');
-  d.className = 'param-cell row-label';
+  d.className = 'param-cell row-label toggle';
+  const body = state.bodies.find(b => b.name === name);
+  if (body && body.active) d.classList.add('active');
   d.innerHTML = `<span class="dot" style="background:${color}"></span>${name}`;
+  d.title = `Click to toggle ${name}`;
+  d.addEventListener('click', () => {
+    const b = state.bodies.find(b => b.name === name);
+    if (!b) return;
+    setActive(name, !b.active);
+    d.classList.toggle('active', b.active);
+  });
   return d;
 }
 

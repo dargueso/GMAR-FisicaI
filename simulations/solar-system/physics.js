@@ -7,51 +7,92 @@ const G          = 1;       // normalised gravitational constant
 const SOFTENING2 = 1e-3;    // ε² added to r² to keep accelerations finite
 
 // Default orbital parameters. Hierarchical Keplerian setup that yields a
-// stable Sun · Earth · Moon · Jupiter system in normalised units:
-//   Earth/Jupiter orbital v_circ = √(G·M☉/r)
-//   Moon orbital           v_circ = √(G·M⊕/r_moon)
-// Earth Hill radius ≈ 200·(20/3000)^⅓ ≈ 37, so r_moon = 15 is comfortably
-// inside Earth's gravitational dominance. Jupiter is placed at r=500 so it
-// only mildly perturbs the inner system.
+// reasonably stable Sun-centred system in normalised units. Distances are
+// compressed for the outer planets so they fit on screen; masses are
+// compressed too so mutual perturbations don't destabilise the inner
+// planets over short runs.
+//   Planet orbital v_circ = √(G·M☉/r)
+//   Moon   orbital v_circ = √(G·M⊕/r_moon)
 const DEFAULT_PARAMS = {
   sunMass:        1000,
-  earthMass:        20,
-  earthRadius:     200,    // Earth–Sun distance
-  earthSpeed:      1.0,    // factor on circular-orbit velocity (1 = circular)
-  moonMass:        0.5,
-  moonRadius:       15,    // Moon–Earth distance
-  moonSpeed:       1.0,
-  jupiterMass:      50,
-  jupiterRadius:   500,    // Jupiter–Sun distance
-  jupiterSpeed:    1.0,
+
+  mercuryMass:       5,    mercuryRadius:    80,   mercurySpeed:    1.0,
+  venusMass:        18,    venusRadius:     145,   venusSpeed:      1.0,
+  earthMass:        20,    earthRadius:     200,   earthSpeed:      1.0,
+  moonMass:        0.5,    moonRadius:       15,   moonSpeed:       1.0,   // orbits Earth
+  marsMass:          8,    marsRadius:      280,   marsSpeed:       1.0,
+  jupiterMass:      50,    jupiterRadius:   500,   jupiterSpeed:    1.0,
+  saturnMass:       35,    saturnRadius:    700,   saturnSpeed:     1.0,
+  uranusMass:       18,    uranusRadius:    850,   uranusSpeed:     1.0,
+  neptuneMass:      22,    neptuneRadius:  1000,   neptuneSpeed:    1.0,
 };
 
 // Visual constants per body — kept fixed regardless of mass slider so the
-// hierarchy (Sun > Jupiter > Earth > Moon) stays readable at a glance.
+// hierarchy stays readable at a glance.
 const BODY_VISUAL = {
   Sun:     { color: '#ffb84d', radius: 11, glow: 32 },
+  Mercury: { color: '#a8a8a8', radius: 3,  glow: 7  },
+  Venus:   { color: '#e8c878', radius: 4,  glow: 10 },
   Earth:   { color: '#4a90e2', radius: 5,  glow: 14 },
   Moon:    { color: '#cfcfcf', radius: 3,  glow: 8  },
+  Mars:    { color: '#cd5c2c', radius: 4,  glow: 10 },
   Jupiter: { color: '#d4a574', radius: 8,  glow: 22 },
+  Saturn:  { color: '#e8d090', radius: 7,  glow: 18 },
+  Uranus:  { color: '#88d4d4', radius: 6,  glow: 14 },
+  Neptune: { color: '#4060c8', radius: 6,  glow: 14 },
+};
+
+// Starting angles (rad) — distribute the planets around the Sun so they
+// aren't all aligned on the +x axis at t=0.
+const START_ANGLES = {
+  Mercury: 0,
+  Venus:   Math.PI / 4,
+  Earth:   Math.PI / 2,
+  Mars:    3 * Math.PI / 4,
+  Jupiter: Math.PI,
+  Saturn:  5 * Math.PI / 4,
+  Uranus:  3 * Math.PI / 2,
+  Neptune: 7 * Math.PI / 4,
 };
 
 function buildBodies(p) {
-  const earthV   = Math.sqrt(G * p.sunMass   / p.earthRadius)   * p.earthSpeed;
-  const moonV    = earthV
-                 + Math.sqrt(G * p.earthMass / p.moonRadius)    * p.moonSpeed;
-  const jupiterV = Math.sqrt(G * p.sunMass   / p.jupiterRadius) * p.jupiterSpeed;
+  // Place a body on a circular orbit of given radius around the Sun, at
+  // starting angle θ, moving CCW.
+  function planetAt(name, mass, radius, speedFactor, theta) {
+    const v = Math.sqrt(G * p.sunMass / radius) * speedFactor;
+    return {
+      name, mass,
+      x:  radius * Math.cos(theta),
+      y:  radius * Math.sin(theta),
+      vx: -v * Math.sin(theta),
+      vy:  v * Math.cos(theta),
+    };
+  }
 
-  // Jupiter starts on the opposite side of the Sun from Earth so the inner
-  // and outer systems are visually separated at t = 0. Both orbit CCW.
+  const mercury = planetAt('Mercury', p.mercuryMass, p.mercuryRadius, p.mercurySpeed, START_ANGLES.Mercury);
+  const venus   = planetAt('Venus',   p.venusMass,   p.venusRadius,   p.venusSpeed,   START_ANGLES.Venus);
+  const earth   = planetAt('Earth',   p.earthMass,   p.earthRadius,   p.earthSpeed,   START_ANGLES.Earth);
+  const mars    = planetAt('Mars',    p.marsMass,    p.marsRadius,    p.marsSpeed,    START_ANGLES.Mars);
+  const jupiter = planetAt('Jupiter', p.jupiterMass, p.jupiterRadius, p.jupiterSpeed, START_ANGLES.Jupiter);
+  const saturn  = planetAt('Saturn',  p.saturnMass,  p.saturnRadius,  p.saturnSpeed,  START_ANGLES.Saturn);
+  const uranus  = planetAt('Uranus',  p.uranusMass,  p.uranusRadius,  p.uranusSpeed,  START_ANGLES.Uranus);
+  const neptune = planetAt('Neptune', p.neptuneMass, p.neptuneRadius, p.neptuneSpeed, START_ANGLES.Neptune);
+
+  // Moon orbits Earth, offset radially outward from Earth's current direction
+  // and given Earth's velocity plus its own circular orbit around Earth.
+  const moonAng = START_ANGLES.Earth;
+  const vMoon   = Math.sqrt(G * p.earthMass / p.moonRadius) * p.moonSpeed;
+  const moon = {
+    name: 'Moon', mass: p.moonMass,
+    x:  earth.x +     p.moonRadius * Math.cos(moonAng),
+    y:  earth.y +     p.moonRadius * Math.sin(moonAng),
+    vx: earth.vx + (-vMoon * Math.sin(moonAng)),
+    vy: earth.vy + ( vMoon * Math.cos(moonAng)),
+  };
+
   const bodies = [
-    { name: 'Sun',     mass: p.sunMass,
-      x: 0, y: 0, vx: 0, vy: 0 },
-    { name: 'Earth',   mass: p.earthMass,
-      x: p.earthRadius, y: 0, vx: 0, vy: earthV },
-    { name: 'Moon',    mass: p.moonMass,
-      x: p.earthRadius + p.moonRadius, y: 0, vx: 0, vy: moonV },
-    { name: 'Jupiter', mass: p.jupiterMass,
-      x: -p.jupiterRadius, y: 0, vx: 0, vy: -jupiterV },
+    { name: 'Sun', mass: p.sunMass, x: 0, y: 0, vx: 0, vy: 0 },
+    mercury, venus, earth, moon, mars, jupiter, saturn, uranus, neptune,
   ];
 
   // Zero net momentum: bake the small counter-velocity into the Sun so the
@@ -108,7 +149,7 @@ function verletStep(active, dt) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    G, DEFAULT_PARAMS, BODY_VISUAL,
+    G, DEFAULT_PARAMS, BODY_VISUAL, START_ANGLES,
     buildBodies, freshBodies, accelerations, verletStep,
   };
 }
