@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plano Inclinado — Simulador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --clr-bg:           #f8f9fa;
+      --clr-surface:      #ffffff;
+      --clr-text:         #1f2937;
+      --clr-text-muted:   #6b7280;
+      --clr-accent:       #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border:       #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg:           #2e3440;
+        --clr-surface:      #3b4252;
+        --clr-text:         #eceff4;
+        --clr-text-muted:   #d0d8e4;
+        --clr-accent:       #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border:       #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 4 / 3;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+    }
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--clr-text-muted);
+      width: 160px;
+      flex-shrink: 0;
+    }
+    input[type=number] {
+      flex: 1;
+      min-width: 0;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=number]:focus {
+      outline: none;
+      border-color: var(--clr-accent);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+      padding: 12px 14px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-key   { color: var(--clr-text-muted); }
+    .stat-value { color: var(--clr-text); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* Colour dots beside force labels */
+    .dot-W     { color: #e07a5f; }
+    .dot-N     { color: #3aa776; }
+    .dot-f     { color: #b06ab3; }
+    .dot-Wpar  { color: #d4a23c; }
+    .dot-Wperp { color: #5fb3d4; }
+    .dot-a     { color: var(--clr-text-muted); }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover   { background: var(--clr-accent-light); }
+    button.primary { background: var(--clr-accent); color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+    button.active  { background: var(--clr-accent-light); border-color: var(--clr-accent); }
+
+    .equations {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .equations h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .eq-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 640px)  { .eq-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) {
+      .equations { max-width: 1080px; }
+      .eq-grid   { grid-template-columns: repeat(4, 1fr); }
+    }
+    .eq-title {
+      font-size: 0.72rem;
+      color: var(--clr-text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .eq {
+      font-size: 1rem;
+      line-height: 2.2;
+      color: var(--clr-text);
+    }
+    .eq-note {
+      font-size: 0.72rem;
+      color: var(--clr-text-muted);
+      margin-top: 4px;
+    }
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1080px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; max-width: 700px; min-width: 420px; }
+      .controls { flex: 0 0 320px; max-width: 320px; padding: 18px; }
+      .control-label { width: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Simulador de Plano Inclinado</h1>
+  <p>Objeto cuadrado sin rodadura · rozamiento cinético/estático (mismo μ)</p>
+</header>
+
+<div class="main-layout">
+
+<div class="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="controls">
+
+  <div class="control-row">
+    <span class="control-label">Masa m</span>
+    <input type="number" id="inp-m" value="2" step="0.1" min="0.01">
+    <span class="stat-key">kg</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Ángulo θ</span>
+    <input type="number" id="inp-angle" value="30" step="1" min="0" max="89">
+    <span class="stat-key">°</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Coef. rozamiento μ</span>
+    <input type="number" id="inp-mu" value="0.20" step="0.01" min="0">
+    <span class="stat-key"></span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Gravedad g</span>
+    <input type="number" id="inp-g" value="9.81" step="0.01" min="0.01">
+    <span class="stat-key">m/s²</span>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <span class="stat-key dot-W">● Peso W = mg</span>
+    <span class="stat-value" id="stat-W">—</span>
+
+    <span class="stat-key dot-N">● Normal N</span>
+    <span class="stat-value" id="stat-N">—</span>
+
+    <span class="stat-key dot-f">● Rozamiento f</span>
+    <span class="stat-value" id="stat-f">—</span>
+
+    <span class="stat-key dot-Wpar">● W∥ = mg sinθ</span>
+    <span class="stat-value" id="stat-Wpar">—</span>
+
+    <span class="stat-key dot-Wperp">● W⊥ = mg cosθ</span>
+    <span class="stat-value" id="stat-Wperp">—</span>
+
+    <span class="stat-key dot-a">Aceleración a</span>
+    <span class="stat-value" id="stat-a">—</span>
+
+    <span class="stat-key">Estado</span>
+    <span class="stat-value" id="stat-state">—</span>
+  </div>
+
+  <!-- Decomposition toggle -->
+  <div class="control-row">
+    <span class="control-label">Descomponer W</span>
+    <div class="button-row" style="justify-content:flex-start">
+      <button id="btn-decomp">W∥ / W⊥</button>
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="button-row">
+    <button id="btn-start" class="primary">Iniciar</button>
+    <button id="btn-pause">Pausar</button>
+    <button id="btn-reset">Reiniciar</button>
+  </div>
+
+  <p class="hint">Enter en cualquier campo = Iniciar · Cambia los parámetros para ver el movimiento</p>
+</div>
+
+</div><!-- .main-layout -->
+
+<!-- Equations -->
+<section class="equations">
+  <h2>Ecuaciones de movimiento (sin rodadura)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Eje ⊥ al plano</div>
+      <div class="eq" data-tex="N - mg\cos\theta = 0"></div>
+      <div class="eq" data-tex="N = mg\cos\theta"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Eje ∥ al plano</div>
+      <div class="eq" data-tex="ma = mg\sin\theta - f"></div>
+      <div class="eq" data-tex="f = \mu\,N = \mu\,mg\cos\theta"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Si desliza (tanθ &gt; μ)</div>
+      <div class="eq" data-tex="a = g\,(\sin\theta - \mu\cos\theta)"></div>
+      <div class="eq" data-tex="a > 0"></div>
+      <div class="eq-note">f cinético = μN, opuesto al movimiento</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Si en reposo (tanθ ≤ μ)</div>
+      <div class="eq" data-tex="f = mg\sin\theta \;\leq\; \mu\,mg\cos\theta"></div>
+      <div class="eq" data-tex="a = 0"></div>
+      <div class="eq-note">Condición de deslizamiento: tan θ &gt; μ</div>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+  document.querySelectorAll('.eq[data-tex]').forEach(el => {
+    katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+  });
+</script>
+
+<script src="physics.js"></script>
+<script src="scene.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+
+</body>
+</html>
