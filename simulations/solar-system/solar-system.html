@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sun · Earth · Moon — Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 1 / 1;
+    }
+
+    /* Canvas stays dark in both themes — same visual language as the other sims. */
+    #canvas2d {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+      background: #0f1117;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      width: 130px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--clr-accent);
+      cursor: pointer;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: var(--clr-text);
+      width: 80px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Number inputs (live-editable parameter values) — used both in the
+       parameter grid and in the side panel sliders. */
+    input[type=number] {
+      font-family: inherit;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      min-width: 0;
+    }
+    input[type=number]:focus {
+      outline: none;
+      border-color: var(--clr-accent);
+    }
+    /* Hide the spin buttons — the slider gives drag adjustment, the number
+       input is for typing exact values. */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+
+    .control-unit {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      width: 14px;
+      flex-shrink: 0;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+      white-space: pre-line;
+      line-height: 1.5;
+    }
+
+    /* Parameter grid: rows = bodies, columns = Mass / Distance / Speed. */
+    .param-table {
+      display: grid;
+      grid-template-columns: 88px 1fr 1fr 1fr;
+      gap: 8px 10px;
+      align-items: center;
+      padding: 4px 0;
+      border-top: 1px solid var(--clr-border);
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .param-cell {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .param-cell.header {
+      font-size: 0.7rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .param-cell.row-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .param-cell.row-label .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .param-cell.empty {
+      color: var(--clr-text-muted);
+      text-align: center;
+      font-size: 0.8rem;
+    }
+    .param-cell input[type=range] {
+      width: 100%;
+      margin: 0;
+    }
+    .param-cell .val {
+      font-size: 0.72rem;
+      padding: 1px 3px;
+      width: 100%;
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1080px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; max-width: 700px; min-width: 420px; }
+      .controls { flex: 0 0 340px; max-width: 340px; padding: 18px; }
+      .control-label { width: 128px; }
+      .control-value { width: 70px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Sun · Earth · Moon Simulator</h1>
+  <p>Two-dimensional N-body gravity — toggle each body to see how the rest behaves</p>
+</header>
+
+<div class="main-layout">
+
+  <div class="canvas-container">
+    <canvas id="canvas2d"></canvas>
+  </div>
+
+  <div class="controls" id="controls"></div>
+
+</div>
+
+<script src="physics.js"></script>
+<script src="main.js"></script>
+
+</body>
+</html>
