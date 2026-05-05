@@ -11,25 +11,38 @@ const state = {
   params:    { ...DEFAULT_PARAMS },
   bodies:    [],
   t:         0,
-  timeScale: 10,
-  running:   true,
+  // With realistic masses (M_sun = 333 000 M⊕) orbital velocities are
+  // ~18× faster than the old normalised system, so a time scale of 2
+  // gives a comfortable ~15 s Earth year and ~1 s Moon orbit.
+  timeScale: 2,
+  running:   false,    // start paused so the user can configure bodies first
+  // Manual camera: zoom multiplies the auto-fit scale, pan shifts the canvas
+  // origin in pixels. Both are reset by the Reset button or double-click.
+  zoom:      1.0,
+  panX:      0,
+  panY:      0,
 };
 
 // Slider config table — drives both the parameter grid layout and the
 // param->slider binding. `null` cells are rendered as dashes (e.g. the Sun
 // has no orbit so its Distance/Speed cells are blank).
 //   [paramKey, min, max, step]
+// Slider ranges. Masses are in Earth masses (M⊕); distances are in sim
+// units (Earth = 200 = 1 AU). Mass ranges intentionally span 3–4 orders of
+// magnitude per body so students can explore extreme cases — e.g. drop the
+// Sun to a brown-dwarf, blow Jupiter up to a stellar mass, or compare a
+// sub-Mercury Earth.
 const PARAM_TABLE = [
-  { name: 'Sun',     mass: ['sunMass',      200,  3000, 10  ], dist: null,                                speed: null                              },
-  { name: 'Mercury', mass: ['mercuryMass',  0.1,    30,  0.1], dist: ['mercuryRadius',  30,  300,  1   ], speed: ['mercurySpeed', 0.5, 1.5, 0.01] },
-  { name: 'Venus',   mass: ['venusMass',      1,    60,  0.1], dist: ['venusRadius',    60,  300,  1   ], speed: ['venusSpeed',   0.5, 1.5, 0.01] },
-  { name: 'Earth',   mass: ['earthMass',      1,   100,  1  ], dist: ['earthRadius',    80,  320,  1   ], speed: ['earthSpeed',   0.5, 1.5, 0.01] },
-  { name: 'Moon',    mass: ['moonMass',    0.01,     5,  0.01], dist: ['moonRadius',     5,   30,  0.5 ], speed: ['moonSpeed',    0.5, 1.5, 0.01] },
-  { name: 'Mars',    mass: ['marsMass',     0.5,    40,  0.1], dist: ['marsRadius',    100,  450,  1   ], speed: ['marsSpeed',    0.5, 1.5, 0.01] },
-  { name: 'Jupiter', mass: ['jupiterMass',    5,   300,  1  ], dist: ['jupiterRadius',  80,  800,  1   ], speed: ['jupiterSpeed', 0.5, 1.5, 0.01] },
-  { name: 'Saturn',  mass: ['saturnMass',     1,   200,  1  ], dist: ['saturnRadius',  400, 1100,  5   ], speed: ['saturnSpeed',  0.5, 1.5, 0.01] },
-  { name: 'Uranus',  mass: ['uranusMass',     1,   100,  1  ], dist: ['uranusRadius',  600, 1300,  5   ], speed: ['uranusSpeed',  0.5, 1.5, 0.01] },
-  { name: 'Neptune', mass: ['neptuneMass',    1,   100,  1  ], dist: ['neptuneRadius', 800, 1500,  5   ], speed: ['neptuneSpeed', 0.5, 1.5, 0.01] },
+  { name: 'Sun',     mass: ['sunMass',      1000, 10000000, 1000  ], dist: null,                                speed: null                              },
+  { name: 'Mercury', mass: ['mercuryMass',  0.001,       5, 0.001 ], dist: ['mercuryRadius',  30,   200,  1   ], speed: ['mercurySpeed', 0.5, 1.5, 0.01] },
+  { name: 'Venus',   mass: ['venusMass',     0.01,      20, 0.01  ], dist: ['venusRadius',    60,   250,  1   ], speed: ['venusSpeed',   0.5, 1.5, 0.01] },
+  { name: 'Earth',   mass: ['earthMass',      0.1,    1000, 0.1   ], dist: ['earthRadius',   100,   400,  1   ], speed: ['earthSpeed',   0.5, 1.5, 0.01] },
+  { name: 'Moon',    mass: ['moonMass',     0.001,      10, 0.001 ], dist: ['moonRadius',    0.5,     5, 0.05 ], speed: ['moonSpeed',    0.5, 1.5, 0.01] },
+  { name: 'Mars',    mass: ['marsMass',      0.01,      20, 0.005 ], dist: ['marsRadius',    200,   500,  1   ], speed: ['marsSpeed',    0.5, 1.5, 0.01] },
+  { name: 'Jupiter', mass: ['jupiterMass',      1,   10000, 1     ], dist: ['jupiterRadius', 600,  1500,  5   ], speed: ['jupiterSpeed', 0.5, 1.5, 0.01] },
+  { name: 'Saturn',  mass: ['saturnMass',       1,    5000, 1     ], dist: ['saturnRadius', 1500,  2500,  5   ], speed: ['saturnSpeed',  0.5, 1.5, 0.01] },
+  { name: 'Uranus',  mass: ['uranusMass',     0.1,    1000, 0.1   ], dist: ['uranusRadius', 3000,  5000,  5   ], speed: ['uranusSpeed',  0.5, 1.5, 0.01] },
+  { name: 'Neptune', mass: ['neptuneMass',    0.1,    1000, 0.1   ], dist: ['neptuneRadius', 5000, 8000,  5   ], speed: ['neptuneSpeed', 0.5, 1.5, 0.01] },
 ];
 
 let canvas, ctx;
@@ -40,6 +53,7 @@ function init() {
   resize();
   applyParams(false);
   buildControls();
+  attachCameraEvents();
   window.addEventListener('resize', resize);
   requestAnimationFrame(frame);
 }
@@ -51,26 +65,81 @@ function resize() {
 }
 
 // Re-initialise body positions/velocities from current params.
-// preserveActive=true keeps each body's on/off toggle state across edits.
-// Match by name so the body lineup can change without losing toggle state.
+// preserveActive=true keeps each body's on/off toggle state across edits;
+// the active set is passed into buildBodies so velocities are computed in
+// the actual gravitational field of just the bodies that will be simulated.
 function applyParams(preserveActive = true) {
-  const newBodies = buildBodies(state.params);
+  let activeNames = null;
   if (preserveActive && state.bodies.length) {
-    const oldByName = new Map(state.bodies.map(b => [b.name, b]));
-    for (const nb of newBodies) {
-      const ob = oldByName.get(nb.name);
-      if (ob) nb.active = ob.active;
-    }
+    activeNames = new Set(state.bodies.filter(b => b.active).map(b => b.name));
   }
-  state.bodies = newBodies;
+  state.bodies = buildBodies(state.params, activeNames);
   state.t = 0;
 }
 
 function reset() {
   state.params = { ...DEFAULT_PARAMS };
   applyParams(false);
-  state.running = true;
+  state.running = false;     // stay paused so the user can reconfigure
+  state.zoom = 1.0;          // restore the auto-fit camera too
+  state.panX = state.panY = 0;
   buildControls();
+}
+
+// ── Camera interaction (wheel zoom + drag pan + dbl-click reset) ───────────
+
+function attachCameraEvents() {
+  // Mouse-wheel zoom centred on cursor: keep the world point under the
+  // cursor fixed across the zoom step.
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newZoom = Math.max(0.05, Math.min(50, state.zoom * factor));
+    if (newZoom === state.zoom) return;
+    updateCamera();
+    const worldX = (mx - state.cx) / state.scale;
+    const worldY = (my - state.cy) / state.scale;
+    state.zoom = newZoom;
+    updateCamera();
+    state.panX += mx - (state.cx + worldX * state.scale);
+    state.panY += my - (state.cy + worldY * state.scale);
+  }, { passive: false });
+
+  // Click-drag pan. Don't start a pan if the user clicked on a body — at
+  // the moment there's no body interaction, but if we ever add one this
+  // keeps it from fighting.
+  let dragging = false;
+  let lastX = 0, lastY = 0;
+  const onDown = (x, y) => { dragging = true; lastX = x; lastY = y; canvas.style.cursor = 'grabbing'; };
+  const onMove = (x, y) => {
+    if (!dragging) return;
+    state.panX += (x - lastX);
+    state.panY += (y - lastY);
+    lastX = x; lastY = y;
+  };
+  const onUp = () => { dragging = false; canvas.style.cursor = 'grab'; };
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return [t.clientX - r.left, t.clientY - r.top];
+  }
+  canvas.addEventListener('mousedown',  e => onDown(...pos(e)));
+  window.addEventListener('mousemove',  e => onMove(...pos(e)));
+  window.addEventListener('mouseup',    onUp);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(...pos(e)); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); onMove(...pos(e)); }, { passive: false });
+  canvas.addEventListener('touchend',   onUp);
+
+  // Double-click resets only the camera (not the simulation).
+  canvas.addEventListener('dblclick', () => {
+    state.zoom = 1.0;
+    state.panX = state.panY = 0;
+  });
+
+  canvas.style.cursor = 'grab';
 }
 
 function setActive(name, on) {
@@ -78,6 +147,9 @@ function setActive(name, on) {
   if (!b) return;
   b.active = on;
   if (!on) b.trail = [];
+  // Re-derive every active body's circular velocity in the new field —
+  // otherwise removing or adding a body leaves the rest with stale orbits.
+  applyParams(true);
 }
 
 function setParam(key, v) {
@@ -90,7 +162,9 @@ function setParam(key, v) {
 function step(dt) {
   if (!state.running) return;
   const scaledDt = dt * state.timeScale;
-  const subs = Math.max(4, Math.ceil(scaledDt / 0.04));
+  // 0.01 sub-cap keeps the Moon's tight orbit (period ≈ 2.58 time units at
+  // r=1.5) accurate even at high time-scales.
+  const subs = Math.max(4, Math.ceil(scaledDt / 0.01));
   const sub  = scaledDt / subs;
   for (let i = 0; i < subs; i++) {
     verletStep(state.bodies.filter(b => b.active), sub);
@@ -105,12 +179,10 @@ function step(dt) {
 
 // ── Render ──────────────────────────────────────────────────────────────────
 
-function render() {
+// Latest camera transform — kept on `state` so the wheel/pan handlers can
+// convert mouse coordinates into world coordinates.
+function updateCamera() {
   const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2;
-
-  // Auto-fit so the largest orbit stays visible.
   const p = state.params;
   const maxReach = Math.max(
     p.mercuryRadius,
@@ -123,7 +195,16 @@ function render() {
     p.neptuneRadius,
     260,
   ) + 30;
-  const scale = Math.min(W, H) / (maxReach * 2.0);
+  state.scale = (Math.min(W, H) / (maxReach * 2.0)) * state.zoom;
+  state.cx    = W / 2 + state.panX;
+  state.cy    = H / 2 + state.panY;
+}
+
+function render() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  updateCamera();
+  const { cx, cy, scale } = state;
 
   // Trails
   for (const b of state.bodies) {
@@ -162,7 +243,8 @@ function render() {
   ctx.font = '12px ui-monospace, Menlo, monospace';
   ctx.fillStyle = '#c0c0c0';
   let ry = 22;
-  ctx.fillText(`t  = ${state.t.toFixed(1)}`, 14, ry); ry += 18;
+  ctx.fillText(`t    = ${state.t.toFixed(1)}`, 14, ry); ry += 18;
+  ctx.fillText(`zoom = ${state.zoom.toFixed(2)}×`, 14, ry); ry += 18;
   const activeCount = state.bodies.filter(b => b.active).length;
   ctx.fillText(`bodies: ${activeCount} / ${state.bodies.length}`, 14, ry); ry += 18;
   for (const b of state.bodies) {
@@ -194,8 +276,10 @@ function buildControls() {
   // that body on/off.
   panel.appendChild(buildParamTable());
 
-  // Time scale (full-width slider, separate from the body grid)
-  addSlider(panel, 'Time scale', '×', 0.1, 30, 0.1, state.timeScale,
+  // Time scale (full-width slider, separate from the body grid).
+  // Range goes high so users can watch Neptune complete an orbit
+  // (period ≈ 5070 time units ⇒ ≈ 100 s at the slider maximum).
+  addSlider(panel, 'Time scale', '×', 0.1, 50, 0.1, state.timeScale,
     v => { state.timeScale = v; });
 
   // Play / Reset row
@@ -220,9 +304,9 @@ function buildControls() {
   const hint = document.createElement('p');
   hint.className = 'hint';
   hint.textContent =
-    'Drag any cell slider to live-edit that orbital parameter.\n' +
-    'Speed = 1 → circular; ≥ √2 ≈ 1.41 → escape orbit.\n' +
-    'Keep the moon inside Earth\'s Hill radius for a bound lunar orbit.';
+    'Defaults are real proportions: M⊕ for masses (Sun = 333 000 M⊕), 1 AU = 200 sim units.\n' +
+    'Earth mass (20 M⊕) and Moon distance (1.5 sim) are bumped so the Moon stays visible.\n' +
+    'Camera: scroll to zoom · drag to pan · double-click to reset. Click a row label to toggle.';
   panel.appendChild(hint);
 }
 
@@ -279,11 +363,20 @@ function cellEmpty(text = '') {
   return d;
 }
 
+// Pick a sensible number of decimal places given the slider's step.
+function decimalsForStep(step) {
+  if (step >= 1)     return 0;
+  if (step >= 0.1)   return 1;
+  if (step >= 0.01)  return 2;
+  if (step >= 0.001) return 3;
+  return 4;
+}
+
 function cellSlider(key, min, max, step) {
   const d = document.createElement('div');
   d.className = 'param-cell';
   const value = state.params[key];
-  const decimals = step < 1 ? 2 : 0;
+  const decimals = decimalsForStep(step);
   d.innerHTML = `
     <input type="range"  class="slider" min="${min}" max="${max}" step="${step}" value="${value}">
     <input type="number" class="val"    min="${min}" max="${max}" step="${step}" value="${value.toFixed(decimals)}">
@@ -311,7 +404,7 @@ function cellSlider(key, min, max, step) {
 }
 
 function addSlider(panel, label, unit, min, max, step, value, onInput) {
-  const decimals = step < 1 ? 2 : 0;
+  const decimals = decimalsForStep(step);
   const row = document.createElement('div');
   row.className = 'control-row';
   row.innerHTML = `

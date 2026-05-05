@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sun · Earth · Moon — Simulator</title>
+  <title>Solar System Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -71,6 +71,7 @@
       display: block;
       border-radius: 8px;
       background: #0f1117;
+      touch-action: none;   /* let drag-to-pan win over the page scroll */
     }
 
     .controls {
@@ -251,8 +252,8 @@
 <body>
 
 <header>
-  <h1>Sun · Earth · Moon Simulator</h1>
-  <p>Two-dimensional N-body gravity — toggle each body to see how the rest behaves</p>
+  <h1>Solar System Simulator</h1>
+  <p>Two-dimensional N-body gravity — Sun, Moon and the eight planets, all toggleable</p>
 </header>
 
 <div class="main-layout">
