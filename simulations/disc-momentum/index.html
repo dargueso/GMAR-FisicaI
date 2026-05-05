@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conservation of Angular Momentum — Rotating Disc</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --clr-bg:           #f8f9fa;
+      --clr-surface:      #ffffff;
+      --clr-text:         #1f2937;
+      --clr-text-muted:   #6b7280;
+      --clr-accent:       #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border:       #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg:           #2e3440;
+        --clr-surface:      #3b4252;
+        --clr-text:         #eceff4;
+        --clr-text-muted:   #d0d8e4;
+        --clr-accent:       #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border:       #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 1 / 1;
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 8px;
+      background: #0f1117;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--clr-text-muted);
+      padding-bottom: 2px;
+      border-bottom: 1px solid var(--clr-border);
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--clr-accent);
+      cursor: pointer;
+    }
+
+    /* Highlight the radial-position slider */
+    input[type=range].primary {
+      accent-color: #ffaa40;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: var(--clr-text);
+      width: 88px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .control-row.r-row .control-label {
+      color: var(--clr-text);
+      font-weight: 600;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+      white-space: pre-line;
+      line-height: 1.6;
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1100px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; max-width: 700px; min-width: 420px; }
+      .controls { flex: 0 0 340px; max-width: 340px; padding: 18px; }
+      .control-label { width: 128px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Conservation of Angular Momentum</h1>
+  <p>Slide the mass radially — ω adjusts so that L = I·ω stays constant</p>
+</header>
+
+<div class="main-layout">
+  <div class="canvas-container">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div class="controls" id="controls"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Physics ─────────────────────────────────────────────────────────────────
+//
+// Solid disc + one sliding mass on top, no external torques.
+// I_disc  = ½·M·R²
+// I_mass  = m·r²
+// I_total = I_disc + I_mass
+// L = I_total · ω  →  when r changes, ω = L / I_total (L conserved)
+
+const SIM = {
+  M:      3.0,   // disc mass       (kg)
+  R:      1.5,   // disc radius     (m)
+  m:      5.0,   // sliding mass    (kg)
+  r:      1.2,   // mass position   (m) — the interactive variable
+  omega0: 1.0,   // reference ω used to define L  (rad/s)
+  // derived & animated
+  angle:  0,
+  omega:  1.0,
+  I:      0,
+  L:      0,
+  running: true,
+  speed:   1.0,  // animation speed multiplier
+};
+
+function discI(M, R)    { return 0.5 * M * R * R; }
+function massI(m, r)    { return m * r * r; }
+function totalI(M,R,m,r){ return discI(M,R) + massI(m,r); }
+
+function freezeL() {
+  SIM.I     = totalI(SIM.M, SIM.R, SIM.m, SIM.r);
+  SIM.omega = SIM.omega0;
+  SIM.L     = SIM.I * SIM.omega;
+}
+
+function applyRadius(r) {
+  SIM.r     = r;
+  SIM.I     = totalI(SIM.M, SIM.R, SIM.m, r);
+  SIM.omega = SIM.I > 1e-9 ? SIM.L / SIM.I : 0;
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+
+let canvas, ctx;
+
+function render() {
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Pixels per metre — disc fills ~40 % of the shorter dimension.
+  const scale = Math.min(W, H) * 0.40 / SIM.R;
+  const dPx   = SIM.R * scale;
+  const mPx   = SIM.r * scale;
+
+  // ── Disc fill ─────────────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(55,65,100,0.90)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, dPx, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spokes — rotate with disc
+  const N = 8;
+  ctx.strokeStyle = 'rgba(110,130,200,0.40)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < N; i++) {
+    const a = SIM.angle + (i / N) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * dPx, cy + Math.sin(a) * dPx);
+    ctx.stroke();
+  }
+
+  // Concentric texture rings
+  ctx.lineWidth = 1;
+  for (const f of [0.25, 0.5, 0.75]) {
+    ctx.strokeStyle = 'rgba(110,130,200,0.14)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, dPx * f, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Disc edge
+  ctx.strokeStyle = 'rgba(100,130,220,0.65)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, dPx, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // ── Radial track for the mass (dashed, co-rotates) ───────────────────────
+  const ta = SIM.angle;
+  ctx.save();
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(255,180,60,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(ta) * 8, cy + Math.sin(ta) * 8);
+  ctx.lineTo(cx + Math.cos(ta) * dPx, cy + Math.sin(ta) * dPx);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ── Sliding mass ─────────────────────────────────────────────────────────
+  const mx = cx + Math.cos(ta) * mPx;
+  const my = cy + Math.sin(ta) * mPx;
+
+  // Glow
+  const grd = ctx.createRadialGradient(mx, my, 0, mx, my, 22);
+  grd.addColorStop(0,   'rgba(255,165,50,0.95)');
+  grd.addColorStop(0.45,'rgba(255,120,30,0.50)');
+  grd.addColorStop(1,   'rgba(255,100,20,0.00)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(mx, my, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Core dot
+  ctx.fillStyle = '#ffb040';
+  ctx.beginPath();
+  ctx.arc(mx, my, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tangential velocity arrow v = ω·r
+  const v      = SIM.omega * SIM.r;
+  const vDir   = Math.sign(SIM.omega || 1);
+  const perpA  = ta + vDir * Math.PI / 2;
+  const vPx    = Math.min(v * scale * 0.22, dPx * 0.7);
+  if (vPx > 4) {
+    const vx = mx + Math.cos(perpA) * vPx;
+    const vy = my + Math.sin(perpA) * vPx;
+    ctx.strokeStyle = 'rgba(255,230,90,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(vx, vy);
+    ctx.stroke();
+    const ha = Math.atan2(vy - my, vx - mx);
+    ctx.fillStyle = 'rgba(255,230,90,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(vx, vy);
+    ctx.lineTo(vx - 9*Math.cos(ha - 0.42), vy - 9*Math.sin(ha - 0.42));
+    ctx.lineTo(vx - 9*Math.cos(ha + 0.42), vy - 9*Math.sin(ha + 0.42));
+    ctx.closePath();
+    ctx.fill();
+    // v label
+    ctx.fillStyle = 'rgba(255,230,90,0.85)';
+    ctx.font = '500 11px DM Sans, sans-serif';
+    ctx.fillText('v', vx + Math.cos(perpA) * 10, vy + Math.sin(perpA) * 10 + 4);
+  }
+
+  // ── Centre hub ────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#1a1e2e';
+  ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#7080b0';
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fill();
+
+  // ── ω curved arrow ───────────────────────────────────────────────────────
+  drawOmegaArc(cx, cy, 38, SIM.omega);
+
+  // ── L vector (constant, out of page) ─────────────────────────────────────
+  drawLSymbol(cx, cy, SIM.omega);
+
+  // ── Canvas readouts ───────────────────────────────────────────────────────
+  const lines = [
+    { label: 'L',  val: SIM.L.toFixed(2),           unit: 'kg·m²/s', gold: true },
+    { label: 'ω',  val: SIM.omega.toFixed(2),        unit: 'rad/s' },
+    { label: 'I',  val: SIM.I.toFixed(2),            unit: 'kg·m²' },
+    { label: 'v',  val: (SIM.omega * SIM.r).toFixed(2), unit: 'm/s' },
+    { label: 'r',  val: SIM.r.toFixed(2),            unit: 'm' },
+  ];
+  ctx.font = '12px ui-monospace, Menlo, monospace';
+  let ty = 22;
+  for (const l of lines) {
+    ctx.fillStyle = l.gold ? '#ffd166' : '#c0c0c0';
+    ctx.fillText(`${l.label} = ${l.val} ${l.unit}`, 14, ty);
+    ty += 18;
+  }
+
+  // Frame label (bottom-left)
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = '#505060';
+  ctx.fillText('top-down view · rotating frame', 14, H - 12);
+}
+
+// ── Drawing helpers ──────────────────────────────────────────────────────────
+
+function drawOmegaArc(cx, cy, radius, omega) {
+  if (Math.abs(omega) < 0.01) return;
+  const dir   = Math.sign(omega);
+  const sweep = Math.min(Math.abs(omega) / 8, 1) * Math.PI * 1.6 + 0.5;
+  ctx.strokeStyle = '#5fb3d4';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (dir > 0) ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 + sweep);
+  else         ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 - sweep, true);
+  ctx.stroke();
+
+  const endA = -Math.PI/2 + dir * sweep;
+  const ex = cx + Math.cos(endA) * radius;
+  const ey = cy + Math.sin(endA) * radius;
+  const tx = -Math.sin(endA) * dir;
+  const ty =  Math.cos(endA) * dir;
+  ctx.fillStyle = '#5fb3d4';
+  ctx.beginPath();
+  ctx.moveTo(ex + tx*8,  ey + ty*8);
+  ctx.lineTo(ex - ty*5,  ey + tx*5);
+  ctx.lineTo(ex + ty*5,  ey - tx*5);
+  ctx.closePath();
+  ctx.fill();
+
+  // ω label
+  ctx.fillStyle = '#5fb3d4';
+  ctx.font = 'bold 13px DM Sans, sans-serif';
+  ctx.fillText('ω', cx + radius * 0.7 + 4, cy - radius * 0.7 - 4);
+}
+
+function drawLSymbol(cx, cy, omega) {
+  // Traditional "vector perpendicular to page" notation.
+  // ⊙ (dot in circle)  = out of page  →  ω > 0 (CCW)
+  // ⊗ (cross in circle) = into page   →  ω < 0 (CW)
+  const ox = cx - 38;   // place it top-left of centre, clear of the ω arc
+  const oy = cy - 50;
+  const R  = 13;        // circle radius
+  const outOfPage = (omega >= 0);
+
+  ctx.shadowColor = '#ffd166';
+  ctx.shadowBlur  = 14;
+
+  // Circle
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  ctx.arc(ox, oy, R, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffd166';
+  if (outOfPage) {
+    // Dot — tip of arrow coming toward the viewer
+    ctx.beginPath();
+    ctx.arc(ox, oy, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Cross — tail of arrow going away from the viewer
+    const d = R * 0.55;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.moveTo(ox - d, oy - d); ctx.lineTo(ox + d, oy + d);
+    ctx.moveTo(ox + d, oy - d); ctx.lineTo(ox - d, oy + d);
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Label "L" to the right of the symbol
+  ctx.fillStyle = '#ffd166';
+  ctx.font      = 'bold 14px DM Sans, sans-serif';
+  ctx.fillText('L', ox + R + 5, oy + 5);
+}
+
+// ── Animation loop ────────────────────────────────────────────────────────────
+
+let lastT = null;
+function frame(t) {
+  if (lastT === null) lastT = t;
+  const dt = Math.min((t - lastT) / 1000, 0.05);
+  lastT = t;
+  if (SIM.running) SIM.angle += SIM.omega * dt * SIM.speed;
+  const rect = canvas.getBoundingClientRect();
+  if (canvas.width !== Math.round(rect.width)) {
+    canvas.width  = Math.round(rect.width);
+    canvas.height = Math.round(rect.height);
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+
+let rSliderEl = null;
+let rValEl    = null;
+let playBtn   = null;
+
+function buildControls() {
+  const panel = document.getElementById('controls');
+  panel.innerHTML = '';
+
+  addSection(panel, 'Disc');
+  addSlider(panel, 'Disc mass M', 'kg',    1, 30,  0.1,  SIM.M, v => { SIM.M = v; applyRadius(SIM.r); });
+  addSlider(panel, 'Disc radius R', 'm',   0.5, 3, 0.05, SIM.R, v => {
+    SIM.R = v;
+    if (SIM.r > SIM.R) { SIM.r = SIM.R * 0.9; }
+    applyRadius(SIM.r);
+    if (rSliderEl) {
+      rSliderEl.max   = SIM.R.toFixed(2);
+      rSliderEl.value = SIM.r.toFixed(2);
+      if (rValEl) rValEl.textContent = `${SIM.r.toFixed(2)} m`;
+    }
+  });
+
+  addSection(panel, 'Sliding mass');
+  addSlider(panel, 'Mass m', 'kg', 0.1, 20, 0.1, SIM.m, v => { SIM.m = v; applyRadius(SIM.r); });
+
+  addSection(panel, 'Initial conditions');
+  addSlider(panel, 'Angular velocity ω₀', 'rad/s', 0.2, 10, 0.1, SIM.omega0, v => {
+    SIM.omega0 = v;
+    freezeL();
+    applyRadius(SIM.r);
+  });
+
+  addSection(panel, 'Radial position  ← move this');
+  const rRow = addSlider(panel, 'Mass position r', 'm', 0.05, SIM.R, 0.01, SIM.r, v => {
+    applyRadius(v);
+  }, true /* primary */);
+  rSliderEl = rRow.slider;
+  rValEl    = rRow.valEl;
+
+  addSection(panel, 'Playback');
+  addSlider(panel, 'Speed', '×', 0.1, 5, 0.1, SIM.speed, v => { SIM.speed = v; });
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'control-row';
+  btnRow.style.gap = '8px';
+
+  playBtn = document.createElement('button');
+  playBtn.textContent = 'Pause';
+  playBtn.style.flex  = '1';
+  playBtn.addEventListener('click', () => {
+    SIM.running = !SIM.running;
+    playBtn.textContent = SIM.running ? 'Pause' : 'Play';
+  });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = 'Reset';
+  resetBtn.style.flex  = '1';
+  resetBtn.addEventListener('click', () => {
+    SIM.angle   = 0;
+    SIM.running = true;
+    playBtn.textContent = 'Pause';
+    freezeL();
+    applyRadius(SIM.r);
+  });
+
+  btnRow.appendChild(playBtn);
+  btnRow.appendChild(resetBtn);
+  panel.appendChild(btnRow);
+
+  const hint = document.createElement('p');
+  hint.className   = 'hint';
+  hint.textContent =
+    'Move the "Mass position r" slider inward → ω increases.\n' +
+    'L (gold arrow) stays constant; v = ω·r shows the tangential speed.\n' +
+    'I_disc = ½MR²  ·  I_mass = mr²  ·  L = (I_disc + I_mass)·ω';
+  panel.appendChild(hint);
+}
+
+function addSection(panel, title) {
+  const el = document.createElement('div');
+  el.className   = 'section-label';
+  el.textContent = title;
+  panel.appendChild(el);
+}
+
+function addSlider(panel, label, unit, min, max, step, value, onInput, primary = false) {
+  const row   = document.createElement('div');
+  row.className = 'control-row' + (primary ? ' r-row' : '');
+  const valStr = value.toFixed(value < 10 ? 2 : 1);
+  row.innerHTML = `
+    <span class="control-label">${label}</span>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${value}"${primary ? ' class="primary"' : ''}>
+    <span class="control-value">${valStr} ${unit}</span>
+  `;
+  const slider = row.querySelector('input');
+  const valEl  = row.querySelector('.control-value');
+  slider.addEventListener('input', e => {
+    const v = Number(e.target.value);
+    valEl.textContent = `${v.toFixed(v < 10 ? 2 : 1)} ${unit}`;
+    onInput(v);
+  });
+  panel.appendChild(row);
+  return { slider, valEl };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.addEventListener('load', () => {
+  canvas = document.getElementById('canvas');
+  ctx    = canvas.getContext('2d');
+  const rect    = canvas.getBoundingClientRect();
+  canvas.width  = Math.round(rect.width);
+  canvas.height = Math.round(rect.height);
+  window.addEventListener('resize', () => {
+    const r = canvas.getBoundingClientRect();
+    canvas.width  = Math.round(r.width);
+    canvas.height = Math.round(r.height);
+  });
+  freezeL();
+  buildControls();
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
