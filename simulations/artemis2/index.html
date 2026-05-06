@@ -1837,12 +1837,28 @@ const scene  = new THREE.Scene();
 scene.background = new THREE.Color(0x050510);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.001, 400);
 
+// ── Solar ephemeris (Meeus Ch. 25, low-precision) ────────────────────────────
+// Returns unit vector toward Sun in EME2000 frame.
+
+function sunDir(jd) {
+  const T   = (jd - 2451545.0) / 36525.0;
+  const L0  = (280.46646  + 36000.76983 * T) % 360;
+  const g   = ((357.52911 + 35999.05029 * T) % 360) * D2R;
+  const C   = (1.9146 - 0.004817 * T) * Math.sin(g) + 0.019993 * Math.sin(2 * g);
+  const lam = (L0 + C) * D2R;
+  const eps = (23.4392911 - 0.0130042 * T) * D2R;
+  return new THREE.Vector3(
+    Math.cos(lam),
+    Math.sin(lam) * Math.cos(eps),
+    Math.sin(lam) * Math.sin(eps)
+  ).normalize();
+}
+
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
 scene.add(new THREE.AmbientLight(0x223355, 1.2));
-const sun = new THREE.DirectionalLight(0xfff5e0, 2.8);
-sun.position.set(22, 6, 8);
-scene.add(sun);
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 2.8);
+scene.add(sunLight);
 
 // ── Stars ─────────────────────────────────────────────────────────────────────
 
@@ -1901,6 +1917,34 @@ scene.add(earthLabel);
 
 const moonLabel = makeLabel('Moon', '#c0c0c0');
 scene.add(moonLabel);
+
+// ── Sun (direction indicator, not to scale) ───────────────────────────────────
+
+const SUN_DIST = 26;   // scene units — well outside Moon orbit (~10 units)
+
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.7, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffee66 })
+);
+scene.add(sunMesh);
+
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  color: 0xffdd33, transparent: true, opacity: 0.22,
+}));
+sunGlow.scale.set(5.5, 5.5, 1);
+scene.add(sunGlow);
+
+const sunLabel = makeLabel('Sun', '#ffee66');
+scene.add(sunLabel);
+
+function updateSun(jd) {
+  const dir = sunDir(jd);
+  const pos = dir.clone().multiplyScalar(SUN_DIST);
+  sunMesh.position.copy(pos);
+  sunGlow.position.copy(pos);
+  sunLabel.position.set(pos.x, pos.y + 1.4, pos.z);
+  sunLight.position.copy(pos);
+}
 
 // ── Moon orbit ring ───────────────────────────────────────────────────────────
 
@@ -2069,6 +2113,7 @@ function update(dt) {
   const mVec = new THREE.Vector3(mKm.x * SCALE, mKm.y * SCALE, mKm.z * SCALE);
   moonMesh.position.copy(mVec);
   moonLabel.position.set(mVec.x, mVec.y + MOON_R * 2.5 + 0.28, mVec.z);
+  updateSun(jd);
 
   const ca_sc = scPos(CA_T);
   caMarker.position.set(ca_sc.x, ca_sc.y, ca_sc.z);
@@ -2115,6 +2160,7 @@ function switchMission(id) {
   const m0 = moonKm(activeMission.JD0);
   moonMesh.position.set(m0.x * SCALE, m0.y * SCALE, m0.z * SCALE);
   moonLabel.position.set(m0.x * SCALE, m0.y * SCALE + MOON_R * 2.5 + 0.28, m0.z * SCALE);
+  updateSun(activeMission.JD0);
   buildControls();
 }
 
@@ -2214,6 +2260,7 @@ window.addEventListener('load', () => {
   const m0 = moonKm(activeMission.JD0);
   moonMesh.position.set(m0.x * SCALE, m0.y * SCALE, m0.z * SCALE);
   moonLabel.position.set(m0.x * SCALE, m0.y * SCALE + MOON_R * 2.5 + 0.28, m0.z * SCALE);
+  updateSun(activeMission.JD0);
   requestAnimationFrame(frame);
 });
 </script>
