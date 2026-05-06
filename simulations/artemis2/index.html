@@ -1918,18 +1918,35 @@ scene.add(earthLabel);
 const moonLabel = makeLabel('Moon', '#c0c0c0');
 scene.add(moonLabel);
 
-// ── Sun direction arrow ───────────────────────────────────────────────────────
+// ── Sun direction arrow (line-only, outside Moon orbit) ──────────────────────
 
-const sunArrow = new THREE.ArrowHelper(
-  new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
-  1.5, 0xffdd55, 0.5, 0.18
-);
-scene.add(sunArrow);
+const sunArrowGroup = new THREE.Group();
+scene.add(sunArrowGroup);
+
+(function () {
+  const len = 1.1, ha = 28 * Math.PI / 180;
+  const hx = Math.sin(ha) * 0.38, hy = Math.cos(ha) * 0.38;
+  // Shaft + 4 angled head lines (XY and ZY planes) so it's readable from any angle
+  const v = new Float32Array([
+    0,0,0,  0,len,0,
+    0,len,0,  -hx,len-hy, 0,
+    0,len,0,   hx,len-hy, 0,
+    0,len,0,   0,len-hy,-hx,
+    0,len,0,   0,len-hy, hx,
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+  sunArrowGroup.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffdd55 })));
+})();
+
+const sunLabel = makeLabel('Sun', '#ffdd55');
+scene.add(sunLabel);
 
 function updateSun(jd) {
   const dir = sunDir(jd);
-  sunArrow.position.copy(dir.clone().multiplyScalar(11));
-  sunArrow.setDirection(dir);
+  sunArrowGroup.position.copy(dir.clone().multiplyScalar(11));
+  sunArrowGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  sunLabel.position.copy(dir.clone().multiplyScalar(13));
   sunLight.position.copy(dir.clone().multiplyScalar(30));
 }
 
