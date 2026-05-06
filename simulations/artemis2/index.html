@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Artemis II — 3D Trajectory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --clr-bg:           #f8f9fa;
+      --clr-surface:      #ffffff;
+      --clr-text:         #1f2937;
+      --clr-text-muted:   #6b7280;
+      --clr-accent:       #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border:       #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg:           #2e3440;
+        --clr-surface:      #3b4252;
+        --clr-text:         #eceff4;
+        --clr-text-muted:   #d0d8e4;
+        --clr-accent:       #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border:       #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #050510;
+    }
+
+    #c {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    #c:active { cursor: grabbing; }
+
+    /* ── HUD overlay ─────────────────────────────────────────── */
+    #hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: none;
+    }
+    .hud-line {
+      font-family: 'ui-monospace', 'Menlo', monospace;
+      font-size: 12px;
+      color: #c8d0e0;
+      line-height: 1.5;
+    }
+    .hud-line.accent   { color: #88e08c; font-weight: 600; }
+    .hud-line.warning  { color: #ffaa40; font-weight: 600; }
+    .hud-line.muted    { color: #505870; font-size: 11px; }
+
+    /* ── Controls panel ──────────────────────────────────────── */
+    .controls {
+      width: 100%;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--clr-text-muted);
+      padding-bottom: 2px;
+      border-bottom: 1px solid var(--clr-border);
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      width: 120px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--clr-accent);
+      cursor: pointer;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: var(--clr-text);
+      width: 72px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    button {
+      padding: 7px 14px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-row button { flex: 1; }
+
+    .fact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+    }
+    .fact { display: flex; flex-direction: column; gap: 1px; }
+    .fact-label { font-size: 0.7rem; color: var(--clr-text-muted); }
+    .fact-value { font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      line-height: 1.55;
+    }
+
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1120px;
+        gap: 28px;
+      }
+      .canvas-container { flex: 1 1 0; min-width: 420px; aspect-ratio: 1/1; }
+      .controls { flex: 0 0 320px; max-width: 320px; }
+      .control-label { width: 108px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Artemis II — 3D Trajectory</h1>
+  <p>Earth–Moon rotating frame · First crewed lunar flyby since Apollo 17 · ~10 days</p>
+</header>
+
+<div class="main-layout">
+
+  <div class="canvas-container" id="ctr">
+    <canvas id="c"></canvas>
+    <div id="hud">
+      <div class="hud-line accent" id="hud-day">Day 0.0 / 10</div>
+      <div class="hud-line" id="hud-phase">Launch &amp; TLI</div>
+      <div class="hud-line" id="hud-dist">384,400 km from Moon</div>
+      <div class="hud-line muted" id="hud-ca"></div>
+      <div class="hud-line muted" style="margin-top:4px">Drag to rotate · Scroll to zoom</div>
+    </div>
+  </div>
+
+  <div class="controls" id="ctrl"></div>
+
+</div>
+
+<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+<script>
+'use strict';
+
+// ── Mission constants ─────────────────────────────────────────────────────────
+
+const EM_DIST   = 10.0;   // Earth–Moon distance (scene units); 1 unit = 38,440 km
+const EARTH_R   = 0.52;   // Earth visual radius (scene units)
+const MOON_R    = 0.24;   // Moon visual radius
+const MISS_DAYS = 10.0;   // mission duration (days)
+const KM_PER_UNIT = 384400 / EM_DIST;
+
+// Mission phases (normalised time)
+const PHASES = [
+  { t0: 0.00, t1: 0.05, label: 'Launch & TLI' },
+  { t0: 0.05, t1: 0.46, label: 'Outbound transit' },
+  { t0: 0.46, t1: 0.54, label: 'Lunar flyby' },
+  { t0: 0.54, t1: 0.97, label: 'Return transit' },
+  { t0: 0.97, t1: 1.00, label: 'Re-entry' },
+];
+
+function phaseLabel(t) {
+  for (const p of PHASES) if (t >= p.t0 && t < p.t1) return p.label;
+  return 'Complete';
+}
+
+// ── Trajectory waypoints (Earth–Moon rotating frame) ─────────────────────────
+//
+// Coordinate system:
+//   X  — along Earth–Moon line (0 = Earth, 10 = Moon)
+//   Y  — perpendicular to orbital plane (inclination axis)
+//   Z  — in-plane, perpendicular to X
+//
+// Artemis II profile: hybrid free-return flyby.
+// Outbound path arcs above (+Y) the orbital plane; return arcs below (−Y).
+// Closest approach is ~10,500 km from the Moon centre (≈ 0.27 scene units).
+
+const RAW_WP = [
+  [ 0.12,  0.00,  0.00 ],   // t≈0.00 — Earth departure
+  [ 1.20,  0.28,  1.30 ],   // t≈0.10 — early outbound
+  [ 3.80,  0.62,  2.40 ],   // t≈0.25 — mid outbound
+  [ 6.80,  0.72,  1.90 ],   // t≈0.40 — late outbound
+  [ 8.90,  0.38,  0.85 ],   // t≈0.46 — approaching Moon
+  [ 9.85,  0.12,  0.28 ],   // t≈0.48 — entering close-approach corridor
+  [10.12, -0.22,  0.12 ],   // t≈0.50 — CLOSEST APPROACH
+  [ 9.80, -0.42, -0.52 ],   // t≈0.52 — post-flyby
+  [ 8.10, -0.65, -1.95 ],   // t≈0.60 — departing Moon region
+  [ 5.80, -0.72, -2.65 ],   // t≈0.70 — mid return (max inclination)
+  [ 3.40, -0.58, -2.15 ],   // t≈0.82 — mid return
+  [ 1.50, -0.28, -1.25 ],   // t≈0.92 — approaching Earth
+  [ 0.12,  0.00,  0.00 ],   // t≈1.00 — Earth return / splashdown
+];
+
+const MOON_VEC = new THREE.Vector3(EM_DIST, 0, 0);
+const curve    = new THREE.CatmullRomCurve3(
+  RAW_WP.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+  false, 'catmullrom', 0.5
+);
+
+const N_SAMPLES  = 800;
+const curvePts   = curve.getPoints(N_SAMPLES);
+
+// Find closest-approach index
+let caIdx = 0, caDist2 = Infinity;
+for (let i = 0; i < curvePts.length; i++) {
+  const d2 = curvePts[i].distanceToSquared(MOON_VEC);
+  if (d2 < caDist2) { caDist2 = d2; caIdx = i; }
+}
+const CA_T    = caIdx / N_SAMPLES;
+const CA_KM   = Math.round(Math.sqrt(caDist2) * KM_PER_UNIT);
+
+// ── Simulation state ──────────────────────────────────────────────────────────
+
+const state = {
+  t:       0,
+  running: true,
+  speed:   1.0,   // days per second
+};
+
+// ── Three.js scene ────────────────────────────────────────────────────────────
+
+const container = document.getElementById('ctr');
+const canvas    = document.getElementById('c');
+const renderer  = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+scene.fog = new THREE.Fog(0x050510, 80, 220);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 400);
+
+// ── Lighting ──────────────────────────────────────────────────────────────────
+
+scene.add(new THREE.AmbientLight(0x223355, 1.2));
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 2.8);
+sunLight.position.set(22, 6, 8);
+scene.add(sunLight);
+
+// ── Stars ─────────────────────────────────────────────────────────────────────
+
+(function () {
+  const N = 2400, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const r     = 160 + Math.random() * 30;
+    pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    pos[i*3+1] = r * Math.cos(phi);
+    pos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.35, sizeAttenuation: true,
+  })));
+})();
+
+// ── Earth ─────────────────────────────────────────────────────────────────────
+
+const earthMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R, 48, 48),
+  new THREE.MeshPhongMaterial({
+    color: 0x1a5f9e, emissive: 0x081828, shininess: 55,
+  })
+);
+scene.add(earthMesh);
+
+// Atmosphere shell
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R * 1.10, 32, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0x4488cc, transparent: true, opacity: 0.10, side: THREE.BackSide,
+  })
+));
+
+// ── Moon ─────────────────────────────────────────────────────────────────────
+
+const moonMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(MOON_R, 40, 40),
+  new THREE.MeshPhongMaterial({ color: 0x909090, emissive: 0x0a0a0a, shininess: 10 })
+);
+moonMesh.position.copy(MOON_VEC);
+scene.add(moonMesh);
+
+// ── Moon orbit ring ───────────────────────────────────────────────────────────
+
+(function () {
+  const pts = [];
+  for (let i = 0; i <= 160; i++) {
+    const a = (i / 160) * Math.PI * 2;
+    pts.push(new THREE.Vector3(EM_DIST * Math.cos(a), 0, EM_DIST * Math.sin(a)));
+  }
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x445566, transparent: true, opacity: 0.35 })
+  ));
+})();
+
+// ── Reference / orbital plane ─────────────────────────────────────────────────
+
+(function () {
+  const size = EM_DIST * 2.6;
+  const geo  = new THREE.PlaneGeometry(size, size, 12, 12);
+  const mat  = new THREE.MeshBasicMaterial({
+    color: 0x1a2d44, transparent: true, opacity: 0.09, side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = Math.PI / 2;
+  scene.add(mesh);
+
+  // Grid lines on the plane
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x223344, transparent: true, opacity: 0.20 });
+  const step = EM_DIST / 2;
+  const half = size / 2;
+  for (let v = -half; v <= half + 0.01; v += step) {
+    const pts = [new THREE.Vector3(-half, 0, v), new THREE.Vector3(half, 0, v)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+    const pts2 = [new THREE.Vector3(v, 0, -half), new THREE.Vector3(v, 0, half)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), lineMat));
+  }
+})();
+
+// ── Full trajectory (faint preview) ──────────────────────────────────────────
+
+scene.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(curvePts),
+  new THREE.LineBasicMaterial({ color: 0x88e08c, transparent: true, opacity: 0.18 })
+));
+
+// ── Animated trail ───────────────────────────────────────────────────────────
+
+const trailPos = new Float32Array((N_SAMPLES + 1) * 3);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+trailGeo.setDrawRange(0, 0);
+scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x88e08c })));
+
+// ── Spacecraft marker ─────────────────────────────────────────────────────────
+
+const scMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.06, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffffff })
+);
+scene.add(scMesh);
+
+// Glow sprite around spacecraft
+const glowMat = new THREE.SpriteMaterial({
+  color: 0xffffff, transparent: true, opacity: 0.35, sizeAttenuation: true,
+});
+const glowSprite = new THREE.Sprite(glowMat);
+glowSprite.scale.set(0.55, 0.55, 1);
+scene.add(glowSprite);
+
+// ── Closest-approach marker ───────────────────────────────────────────────────
+
+const caMarker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffaa40, transparent: true, opacity: 0 })
+);
+caMarker.position.copy(curvePts[caIdx]);
+scene.add(caMarker);
+
+// Thin line from Moon to closest-approach point (dashed emulation via segments)
+(function () {
+  const pts = [curvePts[caIdx].clone(), MOON_VEC.clone()];
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0xffaa40, transparent: true, opacity: 0 })
+  ));
+})();
+
+// ── Camera orbit controls ─────────────────────────────────────────────────────
+
+let camTheta  = 0.55;
+let camPhi    = 0.88;
+let camRadius = 18;
+let dragging  = false;
+let lastMX    = 0, lastMY = 0;
+
+const camPivot = new THREE.Vector3(EM_DIST / 2, 0, 0);
+
+function updateCamera() {
+  const sp = Math.sin(camPhi), cp = Math.cos(camPhi);
+  const st = Math.sin(camTheta), ct = Math.cos(camTheta);
+  camera.position.set(
+    camPivot.x + camRadius * sp * ct,
+    camPivot.y + camRadius * cp,
+    camPivot.z + camRadius * sp * st,
+  );
+  camera.lookAt(camPivot);
+}
+
+canvas.addEventListener('mousedown', e => {
+  dragging = true; lastMX = e.clientX; lastMY = e.clientY;
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  camTheta -= (e.clientX - lastMX) * 0.006;
+  camPhi    = Math.max(0.05, Math.min(Math.PI - 0.05, camPhi + (e.clientY - lastMY) * 0.006));
+  lastMX = e.clientX; lastMY = e.clientY;
+  updateCamera();
+});
+canvas.addEventListener('wheel', e => {
+  camRadius = Math.max(5, Math.min(45, camRadius + e.deltaY * 0.022));
+  updateCamera();
+  e.preventDefault();
+}, { passive: false });
+
+// Touch
+let lastTouch = null;
+canvas.addEventListener('touchstart', e => {
+  lastTouch = e.touches[0]; e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (!lastTouch) return;
+  const t = e.touches[0];
+  camTheta -= (t.clientX - lastTouch.clientX) * 0.006;
+  camPhi    = Math.max(0.05, Math.min(Math.PI - 0.05, camPhi + (t.clientY - lastTouch.clientY) * 0.006));
+  lastTouch = t;
+  updateCamera();
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => { lastTouch = null; });
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+
+const hudDay   = document.getElementById('hud-day');
+const hudPhase = document.getElementById('hud-phase');
+const hudDist  = document.getElementById('hud-dist');
+const hudCa    = document.getElementById('hud-ca');
+
+function updateHUD() {
+  const day = state.t * MISS_DAYS;
+  hudDay.textContent   = `Day ${day.toFixed(2)} / ${MISS_DAYS}`;
+  hudPhase.textContent = phaseLabel(state.t);
+
+  const scPos   = curve.getPoint(state.t);
+  const distKm  = Math.round(scPos.distanceTo(MOON_VEC) * KM_PER_UNIT);
+  hudDist.textContent = `${distKm.toLocaleString()} km from Moon`;
+
+  const nearCA = Math.abs(state.t - CA_T) < 0.025;
+  hudCa.textContent  = nearCA ? `★ Closest approach: ${CA_KM.toLocaleString()} km` : '';
+  hudDay.className   = nearCA ? 'hud-line warning' : 'hud-line accent';
+}
+
+// ── Update loop ───────────────────────────────────────────────────────────────
+
+function update(dt) {
+  if (!state.running || state.t >= 1) return;
+  state.t = Math.min(1, state.t + dt * state.speed / MISS_DAYS);
+
+  // Spacecraft position
+  const pos = curve.getPoint(state.t);
+  scMesh.position.copy(pos);
+  glowSprite.position.copy(pos);
+
+  // Animated trail
+  const endIdx = Math.floor(state.t * N_SAMPLES);
+  for (let i = 0; i <= endIdx; i++) {
+    const p = curvePts[i];
+    trailPos[i*3]   = p.x;
+    trailPos[i*3+1] = p.y;
+    trailPos[i*3+2] = p.z;
+  }
+  trailGeo.setDrawRange(0, endIdx + 1);
+  trailGeo.attributes.position.needsUpdate = true;
+
+  // Closest-approach flash
+  const nearCA = Math.abs(state.t - CA_T) < 0.025;
+  caMarker.material.opacity = nearCA ? 0.85 : 0;
+
+  updateHUD();
+}
+
+// ── Render / animation loop ───────────────────────────────────────────────────
+
+let lastT = null;
+function frame(t) {
+  if (lastT === null) lastT = t;
+  const dt = Math.min((t - lastT) / 1000, 0.05);
+  lastT = t;
+  update(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+// ── Controls panel ────────────────────────────────────────────────────────────
+
+let playBtn = null;
+
+function buildControls() {
+  const panel = document.getElementById('ctrl');
+  panel.innerHTML = '';
+
+  // Mission facts
+  addSection(panel, 'Mission');
+  const grid = document.createElement('div');
+  grid.className = 'fact-grid';
+  grid.innerHTML = `
+    <div class="fact"><span class="fact-label">Duration</span><span class="fact-value">~10 days</span></div>
+    <div class="fact"><span class="fact-label">Crew</span><span class="fact-value">4 astronauts</span></div>
+    <div class="fact"><span class="fact-label">Closest approach</span><span class="fact-value">${CA_KM.toLocaleString()} km</span></div>
+    <div class="fact"><span class="fact-label">Profile</span><span class="fact-value">Free-return flyby</span></div>
+  `;
+  panel.appendChild(grid);
+
+  // Playback
+  addSection(panel, 'Playback');
+  addSlider(panel, 'Speed', 'd/s', 0.2, 15, 0.1, state.speed, v => { state.speed = v; });
+
+  const btnRow1 = document.createElement('div');
+  btnRow1.className = 'btn-row';
+  playBtn = document.createElement('button');
+  playBtn.textContent = 'Pause';
+  playBtn.addEventListener('click', () => {
+    state.running = !state.running;
+    playBtn.textContent = state.running ? 'Pause' : 'Play';
+  });
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = 'Reset';
+  resetBtn.addEventListener('click', () => {
+    state.t = 0;
+    state.running = true;
+    playBtn.textContent = 'Pause';
+    trailGeo.setDrawRange(0, 0);
+    updateHUD();
+  });
+  const caBtn = document.createElement('button');
+  caBtn.textContent = 'Jump → flyby';
+  caBtn.style.flexBasis = '100%';
+  caBtn.addEventListener('click', () => {
+    state.t = Math.max(0, CA_T - 0.04);
+    state.running = true;
+    playBtn.textContent = 'Pause';
+  });
+  btnRow1.appendChild(playBtn);
+  btnRow1.appendChild(resetBtn);
+  panel.appendChild(btnRow1);
+  const btnRow2 = document.createElement('div');
+  btnRow2.className = 'btn-row';
+  btnRow2.appendChild(caBtn);
+  panel.appendChild(btnRow2);
+
+  // Camera
+  addSection(panel, 'Camera');
+  const camRow = document.createElement('div');
+  camRow.className = 'btn-row';
+  const cams = [
+    { label: 'Angled',  theta: 0.55,       phi: 0.88,        r: 18 },
+    { label: 'Top',     theta: 0,           phi: 0.08,        r: 18 },
+    { label: 'Side',    theta: Math.PI / 2, phi: Math.PI / 2, r: 18 },
+    { label: 'Close-up',theta: 0.55,        phi: 0.88,        r: 6 },
+  ];
+  for (const c of cams) {
+    const btn = document.createElement('button');
+    btn.textContent = c.label;
+    btn.addEventListener('click', () => {
+      camTheta = c.theta; camPhi = c.phi; camRadius = c.r;
+      updateCamera();
+    });
+    camRow.appendChild(btn);
+  }
+  panel.appendChild(camRow);
+
+  // Note
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent =
+    'Earth–Moon rotating frame: the Moon is fixed so trajectory shape is clear. ' +
+    'The outbound path arcs above the orbital plane; the return arcs below — drag the ' +
+    'scene to see the inclination.';
+  panel.appendChild(hint);
+}
+
+function addSection(panel, title) {
+  const el = document.createElement('div');
+  el.className = 'section-label';
+  el.textContent = title;
+  panel.appendChild(el);
+}
+
+function addSlider(panel, label, unit, min, max, step, value, onInput) {
+  const row = document.createElement('div');
+  row.className = 'control-row';
+  row.innerHTML = `
+    <span class="control-label">${label}</span>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${value}">
+    <span class="control-value">${value.toFixed(1)} ${unit}</span>
+  `;
+  const slider  = row.querySelector('input');
+  const readout = row.querySelector('.control-value');
+  slider.addEventListener('input', e => {
+    const v = Number(e.target.value);
+    readout.textContent = `${v.toFixed(1)} ${unit}`;
+    onInput(v);
+  });
+  panel.appendChild(row);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.addEventListener('load', () => {
+  resize();
+  updateCamera();
+  buildControls();
+  updateHUD();
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
