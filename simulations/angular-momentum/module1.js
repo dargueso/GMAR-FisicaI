@@ -1,258 +1,316 @@
 // simulations/angular-momentum/module1.js
 //
-// Module 1 — Angular momentum (L = Iω).
-// Top-down view of a rotating mass ring. Dragging the radius slider conserves
-// L by adjusting ω. The L vector arrow points along +z (out of the page) and
-// keeps a fixed length on screen — the visual hook that drives the lesson.
+// Module 1 — Conservation of angular momentum: rotating disc + sliding mass.
+// I_disc = ½MR²,  I_mass = mr²,  I_total = I_disc + I_mass
+// L = I_total·ω  (conserved when r changes, no external torques)
 
 (function () {
 'use strict';
 
-const NUM_MASSES = 8;          // particles arranged on the ring
-const RING_PX_PER_M = 80;      // metres → pixels in the canvas
-const ARROW_BASE_PX = 90;      // L arrow length on screen (constant)
-
 class Module1 {
   constructor() {
-    this.angle = 0;       // current ring rotation (rad)
-    this.s = PhysicsState.module1;
-    this._setLFromSliders();
+    this.angle = 0;
+    this.s = {
+      M: 3.0, R: 1.5,   // disc mass (kg) and radius (m)
+      m: 5.0, r: 1.2,   // sliding mass (kg) and position (m)
+      omega0: 1.0,       // reference ω that defines L
+      omega: 1.0, I: 0, L: 0,
+      running: true, speed: 1.0,
+    };
+    this._freezeL();
   }
 
-  // L = I·ω with I = m·r² (thin ring approximation)
-  _setLFromSliders() {
-    this.s.I = ringInertia(this.s.m, this.s.r);
-    this.s.L = this.s.I * this.s.omega;
+  _discI()   { return 0.5 * this.s.M * this.s.R * this.s.R; }
+  _massI(r)  { return this.s.m * r * r; }
+  _totalI(r) { return this._discI() + this._massI(r); }
+
+  _freezeL() {
+    const s = this.s;
+    s.I = this._totalI(s.r); s.omega = s.omega0; s.L = s.I * s.omega;
+  }
+
+  _applyRadius(r) {
+    const s = this.s;
+    s.r = r; s.I = this._totalI(r); s.omega = s.I > 1e-9 ? s.L / s.I : 0;
   }
 
   init(ctx) {
     this.ctx = ctx;
     this.angle = 0;
-    this._setLFromSliders();
-  }
-
-  // Slider hooks. Mass and ω-direct edits redefine L; radius preserves it.
-  setMass(m)        { this.s.m = m;     this._setLFromSliders(); }
-  setOmegaDirect(w) { this.s.omega = w; this._setLFromSliders(); }
-  setRadius(r) {
-    this.s.r = r;
-    this.s.I = ringInertia(this.s.m, this.s.r);
-    this.s.omega = omegaForConservedL(this.s.L, this.s.m, this.s.r);
+    this._freezeL();
   }
 
   update(dt) {
-    this.angle += this.s.omega * dt;
+    if (this.s.running) this.angle += this.s.omega * dt * this.s.speed;
   }
 
   render() {
-    const ctx = this.ctx;
+    const ctx = this.ctx, s = this.s;
     const W = ctx.canvas.width, H = ctx.canvas.height;
+    const cx = W / 2, cy = H / 2;
     ctx.clearRect(0, 0, W, H);
 
-    const cx = W / 2, cy = H / 2;
-    const rPx = this.s.r * RING_PX_PER_M;
+    const scale = Math.min(W, H) * 0.40 / s.R;
+    const dPx = s.R * scale, mPx = s.r * scale;
 
-    // Faint guideline showing the maximum-radius envelope (3 m)
-    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3 * RING_PX_PER_M, 0, Math.PI * 2);
-    ctx.stroke();
+    // Disc
+    ctx.fillStyle = 'rgba(55,65,100,0.90)';
+    ctx.beginPath(); ctx.arc(cx, cy, dPx, 0, Math.PI*2); ctx.fill();
 
-    // Ring outline
-    ctx.strokeStyle = 'rgba(95,179,212,0.55)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rPx, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Mass beads on the ring — glow + core
-    for (let i = 0; i < NUM_MASSES; i++) {
-      const a = this.angle + (i * 2 * Math.PI) / NUM_MASSES;
-      const x = cx + Math.cos(a) * rPx;
-      const y = cy + Math.sin(a) * rPx;
-      const grd = ctx.createRadialGradient(x, y, 0, x, y, 14);
-      grd.addColorStop(0,   'rgba(255,210,120,0.95)');
-      grd.addColorStop(0.5, 'rgba(255,150,60,0.45)');
-      grd.addColorStop(1,   'rgba(255,150,60,0.0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath();
-      ctx.arc(x, y, 14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffe7a3';
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
+    // Spokes
+    ctx.strokeStyle = 'rgba(110,130,200,0.40)'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 8; i++) {
+      const a = this.angle + i * Math.PI / 4;
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a)*dPx, cy + Math.sin(a)*dPx); ctx.stroke();
     }
 
-    // Spoke from centre to one bead — visual reference for ω
-    const refA = this.angle;
-    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
-    ctx.lineWidth = 1;
+    // Concentric rings
+    for (const f of [0.25, 0.5, 0.75]) {
+      ctx.strokeStyle = 'rgba(110,130,200,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, dPx*f, 0, Math.PI*2); ctx.stroke();
+    }
+
+    // Disc edge
+    ctx.strokeStyle = 'rgba(100,130,220,0.65)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, dPx, 0, Math.PI*2); ctx.stroke();
+
+    // Radial track for mass
+    const ta = this.angle;
+    ctx.save(); ctx.setLineDash([5,5]);
+    ctx.strokeStyle = 'rgba(255,180,60,0.45)'; ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(refA) * rPx, cy + Math.sin(refA) * rPx);
-    ctx.stroke();
+    ctx.moveTo(cx + Math.cos(ta)*8, cy + Math.sin(ta)*8);
+    ctx.lineTo(cx + Math.cos(ta)*dPx, cy + Math.sin(ta)*dPx);
+    ctx.stroke(); ctx.setLineDash([]); ctx.restore();
 
-    // ω arrow — small curved arrow at centre, scales with |ω|
-    drawOmegaArc(ctx, cx, cy, 30, this.s.omega);
+    // Sliding mass — glow + core
+    const mx = cx + Math.cos(ta)*mPx, my = cy + Math.sin(ta)*mPx;
+    const grd = ctx.createRadialGradient(mx, my, 0, mx, my, 22);
+    grd.addColorStop(0,    'rgba(255,165,50,0.95)');
+    grd.addColorStop(0.45, 'rgba(255,120,30,0.50)');
+    grd.addColorStop(1,    'rgba(255,100,20,0.00)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(mx, my, 22, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffb040';
+    ctx.beginPath(); ctx.arc(mx, my, 7, 0, Math.PI*2); ctx.fill();
 
-    // Angular-momentum vector L: drawn pointing "up-right" out of the page.
-    // Constant on-screen length to emphasise that L doesn't change with r.
-    drawLVector(ctx, cx, cy, ARROW_BASE_PX);
+    // Tangential velocity arrow v = ω·r
+    const v    = s.omega * s.r;
+    const vDir = Math.sign(s.omega || 1);
+    const perpA = ta + vDir * Math.PI/2;
+    const vPx   = Math.min(v * scale * 0.22, dPx * 0.7);
+    if (vPx > 4) {
+      const vx = mx + Math.cos(perpA)*vPx, vy = my + Math.sin(perpA)*vPx;
+      ctx.strokeStyle = 'rgba(255,230,90,0.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(vx, vy); ctx.stroke();
+      const ha = Math.atan2(vy-my, vx-mx);
+      ctx.fillStyle = 'rgba(255,230,90,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(vx, vy);
+      ctx.lineTo(vx - 9*Math.cos(ha-0.42), vy - 9*Math.sin(ha-0.42));
+      ctx.lineTo(vx - 9*Math.cos(ha+0.42), vy - 9*Math.sin(ha+0.42));
+      ctx.closePath(); ctx.fill();
+      ctx.font = '500 11px DM Sans, sans-serif';
+      ctx.fillStyle = 'rgba(255,230,90,0.85)';
+      ctx.fillText('v', vx + Math.cos(perpA)*10, vy + Math.sin(perpA)*10 + 4);
+    }
 
-    // Caption block with live readouts
-    drawReadouts(ctx, [
-      `r = ${this.s.r.toFixed(2)} m`,
-      `m = ${this.s.m.toFixed(2)} kg`,
-      `ω = ${this.s.omega.toFixed(2)} rad/s`,
-      `I = ${this.s.I.toFixed(2)} kg·m²`,
-      `L = ${this.s.L.toFixed(2)} kg·m²/s`,
-    ]);
+    // Centre hub
+    ctx.fillStyle = '#1a1e2e';
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7080b0';
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fill();
+
+    // ω arc and L symbol
+    drawOmegaArc(ctx, cx, cy, 38, s.omega);
+    drawLSymbol(ctx, cx, cy, s.omega);
+
+    // Readouts
+    ctx.font = '12px ui-monospace, Menlo, monospace';
+    const rows = [
+      ['L', s.L.toFixed(2),            'kg·m²/s', true],
+      ['ω', s.omega.toFixed(2),         'rad/s'],
+      ['I', s.I.toFixed(2),             'kg·m²'],
+      ['v', (s.omega*s.r).toFixed(2),   'm/s'],
+      ['r', s.r.toFixed(2),             'm'],
+    ];
+    let ty = 22;
+    for (const [lbl, val, unit, gold] of rows) {
+      ctx.fillStyle = gold ? '#ffd166' : '#c0c0c0';
+      ctx.fillText(`${lbl} = ${val} ${unit}`, 14, ty); ty += 18;
+    }
+    ctx.font = '11px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = '#505060';
+    ctx.fillText('top-down view · rotating frame', 14, H - 12);
   }
 
   buildControls(panel) {
     panel.innerHTML = '';
-    addSlider(panel, 'Total mass', 'kg', 1, 20, 0.1, this.s.m,
-      v => { this.setMass(v); });
-    addSlider(panel, 'Radius', 'm', 0.5, 3, 0.01, this.s.r,
-      v => { this.setRadius(v); });
-    addSlider(panel, 'Angular velocity', 'rad/s', 0.5, 5, 0.01, this.s.omega,
-      v => { this.setOmegaDirect(v); });
+    const s = this.s;
+    let rSliderEl = null, rValEl = null, playBtn = null;
+
+    addSection(panel, 'Disc');
+    addSlider(panel, 'Disc mass M', 'kg', 1, 30, 0.1, s.M,
+      v => { s.M = v; this._applyRadius(s.r); });
+    addSlider(panel, 'Disc radius R', 'm', 0.5, 3, 0.05, s.R, v => {
+      s.R = v;
+      if (s.r > s.R) s.r = s.R * 0.9;
+      this._applyRadius(s.r);
+      if (rSliderEl) { rSliderEl.max = s.R.toFixed(2); rSliderEl.value = s.r; }
+      if (rValEl)    rValEl.textContent = `${s.r.toFixed(2)} m`;
+    });
+
+    addSection(panel, 'Sliding mass');
+    addSlider(panel, 'Mass m', 'kg', 0.1, 20, 0.1, s.m,
+      v => { s.m = v; this._applyRadius(s.r); });
+
+    addSection(panel, 'Initial conditions');
+    addSlider(panel, 'Angular velocity ω₀', 'rad/s', 0.2, 10, 0.1, s.omega0, v => {
+      s.omega0 = v; this._freezeL(); this._applyRadius(s.r);
+    });
+
+    addSection(panel, 'Radial position  ← move this');
+    const rRow = addSlider(panel, 'Mass position r', 'm', 0.05, s.R, 0.01, s.r,
+      v => this._applyRadius(v), true);
+    rSliderEl = rRow.slider; rValEl = rRow.valEl;
+
+    addSection(panel, 'Playback');
+    addSlider(panel, 'Speed', '×', 0.1, 5, 0.1, s.speed, v => { s.speed = v; });
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'control-row'; btnRow.style.gap = '8px';
+
+    playBtn = document.createElement('button');
+    playBtn.textContent = 'Pause'; playBtn.style.flex = '1';
+    playBtn.addEventListener('click', () => {
+      s.running = !s.running; playBtn.textContent = s.running ? 'Pause' : 'Play';
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset'; resetBtn.style.flex = '1';
+    resetBtn.addEventListener('click', () => {
+      this.angle = 0; s.running = true; playBtn.textContent = 'Pause';
+      this._freezeL(); this._applyRadius(s.r);
+    });
+
+    btnRow.append(playBtn, resetBtn); panel.appendChild(btnRow);
+
     addHint(panel,
-      'Drag the radius slider — ω changes automatically so L stays constant.\n' +
-      'Marine context: why do hurricanes spin faster as they tighten toward the eye?');
+      'Move "Mass position r" inward → ω increases to conserve L.\n' +
+      'I_disc = ½MR²   ·   I_mass = mr²   ·   L = (I_disc + I_mass)·ω');
   }
 }
 
-// ── Drawing helpers shared by modules ──────────────────────────────────────
+// ── Shared drawing helpers (used by other modules via window.AM) ────────────
 
 function drawOmegaArc(ctx, cx, cy, radius, omega) {
-  if (Math.abs(omega) < 1e-3) return;
-  const dir = Math.sign(omega);
-  const sweep = clamp(Math.abs(omega) / 5, 0.2, 1) * Math.PI * 1.4;
-  ctx.strokeStyle = '#5fb3d4';
-  ctx.lineWidth = 2;
+  if (Math.abs(omega) < 0.01) return;
+  const dir   = Math.sign(omega);
+  const sweep = Math.min(Math.abs(omega) / 8, 1) * Math.PI * 1.6 + 0.5;
+  ctx.strokeStyle = '#5fb3d4'; ctx.lineWidth = 2;
   ctx.beginPath();
   if (dir > 0) ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 + sweep);
   else         ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 - sweep, true);
   ctx.stroke();
-  // arrow head
   const endA = -Math.PI/2 + dir * sweep;
-  const ex = cx + Math.cos(endA) * radius;
-  const ey = cy + Math.sin(endA) * radius;
-  const tx = -Math.sin(endA) * dir;
-  const ty =  Math.cos(endA) * dir;
+  const ex = cx + Math.cos(endA)*radius, ey = cy + Math.sin(endA)*radius;
+  const tx = -Math.sin(endA)*dir,        ty =  Math.cos(endA)*dir;
   ctx.fillStyle = '#5fb3d4';
   ctx.beginPath();
   ctx.moveTo(ex + tx*8, ey + ty*8);
   ctx.lineTo(ex - ty*5, ey + tx*5);
   ctx.lineTo(ex + ty*5, ey - tx*5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.closePath(); ctx.fill();
+  ctx.font = 'bold 13px DM Sans, sans-serif';
+  ctx.fillText('ω', cx + radius*0.7 + 4, cy - radius*0.7 - 4);
 }
 
-function drawLVector(ctx, cx, cy, len) {
-  // Pseudo-3D upward arrow ("out of the page") at the centre.
-  const tipX = cx + len * 0.35;
-  const tipY = cy - len * 0.85;
-  ctx.lineWidth = 3;
-  // Glow
-  ctx.shadowColor = '#ffd166';
-  ctx.shadowBlur = 14;
-  ctx.strokeStyle = '#ffd166';
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(tipX, tipY);
-  ctx.stroke();
-  // Arrowhead
-  const ang = Math.atan2(tipY - cy, tipX - cx);
+function drawLSymbol(ctx, cx, cy, omega) {
+  const ox = cx - 38, oy = cy - 50, R = 13;
+  ctx.shadowColor = '#ffd166'; ctx.shadowBlur = 14;
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(ox, oy, R, 0, Math.PI*2); ctx.stroke();
   ctx.fillStyle = '#ffd166';
-  ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(tipX - 12 * Math.cos(ang - 0.4), tipY - 12 * Math.sin(ang - 0.4));
-  ctx.lineTo(tipX - 12 * Math.cos(ang + 0.4), tipY - 12 * Math.sin(ang + 0.4));
-  ctx.closePath();
-  ctx.fill();
+  if (omega >= 0) {
+    ctx.beginPath(); ctx.arc(ox, oy, 3.5, 0, Math.PI*2); ctx.fill();
+  } else {
+    const d = R * 0.55;
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.moveTo(ox-d, oy-d); ctx.lineTo(ox+d, oy+d);
+    ctx.moveTo(ox+d, oy-d); ctx.lineTo(ox-d, oy+d);
+    ctx.stroke();
+  }
   ctx.shadowBlur = 0;
-  // Label
-  ctx.fillStyle = '#ffd166';
-  ctx.font = 'bold 14px DM Sans, sans-serif';
-  ctx.fillText('L', tipX + 6, tipY - 4);
+  ctx.fillStyle = '#ffd166'; ctx.font = 'bold 14px DM Sans, sans-serif';
+  ctx.fillText('L', ox + R + 5, oy + 5);
 }
 
 function drawReadouts(ctx, lines) {
   ctx.font = '12px ui-monospace, Menlo, monospace';
   ctx.fillStyle = '#c0c0c0';
   let y = 22;
-  for (const line of lines) {
-    ctx.fillText(line, 14, y);
-    y += 18;
-  }
+  for (const line of lines) { ctx.fillText(line, 14, y); y += 18; }
 }
 
-// ── Tiny control-panel helpers (shared) ────────────────────────────────────
+// ── Control-panel helpers (shared with other modules via window.AM) ─────────
 
-function addSlider(panel, label, unit, min, max, step, value, onInput) {
+function addSection(panel, title) {
+  const el = document.createElement('div');
+  el.className = 'section-label'; el.textContent = title; panel.appendChild(el);
+}
+
+function addSlider(panel, label, unit, min, max, step, value, onInput, primary = false) {
   const row = document.createElement('div');
-  row.className = 'control-row';
+  row.className = 'control-row' + (primary ? ' r-row' : '');
+  const valStr = value.toFixed(value < 10 ? 2 : 1);
   row.innerHTML = `
     <span class="control-label">${label}</span>
-    <input type="range" min="${min}" max="${max}" step="${step}" value="${value}">
-    <span class="control-value">${value.toFixed(2)} ${unit}</span>
-  `;
-  const slider = row.querySelector('input');
-  const readout = row.querySelector('.control-value');
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${value}"${primary ? ' class="primary"' : ''}>
+    <span class="control-value">${valStr} ${unit}</span>`;
+  const slider = row.querySelector('input'), valEl = row.querySelector('.control-value');
   slider.addEventListener('input', e => {
     const v = Number(e.target.value);
-    readout.textContent = `${v.toFixed(2)} ${unit}`;
+    valEl.textContent = `${v.toFixed(v < 10 ? 2 : 1)} ${unit}`;
     onInput(v);
   });
   panel.appendChild(row);
-  return slider;
+  return { slider, valEl };
 }
 
 function addSelect(panel, label, options, value, onChange) {
-  const row = document.createElement('div');
-  row.className = 'control-row';
+  const row = document.createElement('div'); row.className = 'control-row';
   const opts = options.map(o =>
     `<option value="${o.value}"${o.value === value ? ' selected' : ''}>${o.label}</option>`
   ).join('');
-  row.innerHTML = `
-    <span class="control-label">${label}</span>
-    <select>${opts}</select>
-  `;
+  row.innerHTML = `<span class="control-label">${label}</span><select>${opts}</select>`;
   const sel = row.querySelector('select');
   sel.addEventListener('change', e => onChange(e.target.value));
-  panel.appendChild(row);
-  return sel;
+  panel.appendChild(row); return sel;
 }
 
 function addButton(panel, label, onClick) {
-  const row = document.createElement('div');
-  row.className = 'control-row';
+  const row = document.createElement('div'); row.className = 'control-row';
   row.innerHTML = `<button>${label}</button>`;
-  const btn = row.querySelector('button');
-  btn.style.flex = '1';
-  btn.addEventListener('click', onClick);
-  panel.appendChild(row);
-  return btn;
+  const btn = row.querySelector('button'); btn.style.flex = '1';
+  btn.addEventListener('click', onClick); panel.appendChild(row); return btn;
 }
 
 function addHint(panel, text) {
-  const p = document.createElement('p');
-  p.className = 'hint';
-  p.textContent = text;
-  panel.appendChild(p);
+  const p = document.createElement('p'); p.className = 'hint';
+  p.textContent = text; panel.appendChild(p);
 }
 
-// Expose publicly via a tiny namespace
+// ── Exports ──────────────────────────────────────────────────────────────────
+
 window.AM = window.AM || {};
-window.AM.Module1   = Module1;
-window.AM.addSlider = addSlider;
-window.AM.addSelect = addSelect;
-window.AM.addButton = addButton;
-window.AM.addHint   = addHint;
+window.AM.Module1      = Module1;
+window.AM.addSlider    = addSlider;
+window.AM.addSelect    = addSelect;
+window.AM.addButton    = addButton;
+window.AM.addHint      = addHint;
+window.AM.addSection   = addSection;
 window.AM.drawReadouts = drawReadouts;
 window.AM.drawOmegaArc = drawOmegaArc;
 
