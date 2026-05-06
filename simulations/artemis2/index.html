@@ -208,7 +208,7 @@
       <div class="hud-line" id="hud-phase">Launch &amp; TLI</div>
       <div class="hud-line" id="hud-dist">384,400 km from Moon</div>
       <div class="hud-line muted" id="hud-ca"></div>
-      <div class="hud-line muted" style="margin-top:4px">Drag to rotate · Scroll to zoom</div>
+      <div class="hud-line muted" style="margin-top:4px">Bodies &amp; orbit to scale · Drag to rotate · Scroll to zoom</div>
     </div>
   </div>
 
@@ -223,8 +223,8 @@
 // ── Mission constants ─────────────────────────────────────────────────────────
 
 const EM_DIST   = 10.0;   // Earth–Moon distance (scene units); 1 unit = 38,440 km
-const EARTH_R   = 0.52;   // Earth visual radius (scene units)
-const MOON_R    = 0.24;   // Moon visual radius
+const EARTH_R   = EM_DIST * (6371  / 384400);  // 0.166 — true scale
+const MOON_R    = EM_DIST * (1737  / 384400);  // 0.0452 — true scale
 const MISS_DAYS = 10.0;   // mission duration (days)
 const KM_PER_UNIT = 384400 / EM_DIST;
 
@@ -254,7 +254,7 @@ function phaseLabel(t) {
 // Closest approach is ~10,500 km from the Moon centre (≈ 0.27 scene units).
 
 const RAW_WP = [
-  [ 0.12,  0.00,  0.00 ],   // t≈0.00 — Earth departure
+  [ 0.25,  0.00,  0.00 ],   // t≈0.00 — Earth departure (above surface)
   [ 1.20,  0.28,  1.30 ],   // t≈0.10 — early outbound
   [ 3.80,  0.62,  2.40 ],   // t≈0.25 — mid outbound
   [ 6.80,  0.72,  1.90 ],   // t≈0.40 — late outbound
@@ -266,7 +266,7 @@ const RAW_WP = [
   [ 5.80, -0.72, -2.65 ],   // t≈0.70 — mid return (max inclination)
   [ 3.40, -0.58, -2.15 ],   // t≈0.82 — mid return
   [ 1.50, -0.28, -1.25 ],   // t≈0.92 — approaching Earth
-  [ 0.12,  0.00,  0.00 ],   // t≈1.00 — Earth return / splashdown
+  [ 0.25,  0.00,  0.00 ],   // t≈1.00 — Earth return / splashdown
 ];
 
 const MOON_VEC = new THREE.Vector3(EM_DIST, 0, 0);
@@ -345,11 +345,11 @@ const earthMesh = new THREE.Mesh(
 );
 scene.add(earthMesh);
 
-// Atmosphere shell
+// Atmosphere shell — larger relative glow so it's visible at true scale
 scene.add(new THREE.Mesh(
-  new THREE.SphereGeometry(EARTH_R * 1.10, 32, 32),
+  new THREE.SphereGeometry(EARTH_R * 1.60, 32, 32),
   new THREE.MeshBasicMaterial({
-    color: 0x4488cc, transparent: true, opacity: 0.10, side: THREE.BackSide,
+    color: 0x4488cc, transparent: true, opacity: 0.22, side: THREE.BackSide,
   })
 ));
 
@@ -362,18 +362,76 @@ const moonMesh = new THREE.Mesh(
 moonMesh.position.copy(MOON_VEC);
 scene.add(moonMesh);
 
-// ── Moon orbit ring ───────────────────────────────────────────────────────────
+// ── Body labels (canvas-texture sprites) ──────────────────────────────────────
+
+function makeBodyLabel(text, color) {
+  const lc = document.createElement('canvas');
+  lc.width = 220; lc.height = 52;
+  const lx = lc.getContext('2d');
+  lx.fillStyle = 'rgba(0,0,0,0)';
+  lx.fillRect(0, 0, 220, 52);
+  lx.fillStyle = color;
+  lx.font = '600 30px DM Sans, system-ui, sans-serif';
+  lx.textAlign = 'center';
+  lx.fillText(text, 110, 38);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(lc), transparent: true, opacity: 0.90,
+  }));
+  sp.scale.set(2.0, 0.47, 1);
+  return sp;
+}
+
+const earthLabel = makeBodyLabel('Earth', '#6aacdd');
+earthLabel.position.set(0, EARTH_R * 2.5 + 0.28, 0);
+scene.add(earthLabel);
+
+const moonLabel = makeBodyLabel('Moon', '#bbbbbb');
+moonLabel.position.set(EM_DIST, MOON_R * 2.5 + 0.28, 0);
+scene.add(moonLabel);
+
+// ── Moon orbit ring — with direction arrows and label ─────────────────────────
 
 (function () {
+  // Orbit ring
   const pts = [];
-  for (let i = 0; i <= 160; i++) {
-    const a = (i / 160) * Math.PI * 2;
+  for (let i = 0; i <= 200; i++) {
+    const a = (i / 200) * Math.PI * 2;
     pts.push(new THREE.Vector3(EM_DIST * Math.cos(a), 0, EM_DIST * Math.sin(a)));
   }
   scene.add(new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: 0x445566, transparent: true, opacity: 0.35 })
+    new THREE.LineBasicMaterial({ color: 0x6688aa, transparent: true, opacity: 0.55 })
   ));
+
+  // Direction arrows — two cones on the ring showing CCW orbital motion
+  // At (0, 0, +EM_DIST) the tangent is in the −X direction (CCW when viewed from +Y)
+  // At (0, 0, −EM_DIST) the tangent is in the +X direction
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0x6688aa });
+  for (const [x, z, rotZ] of [
+    [0,  EM_DIST, -Math.PI / 2],   // top of ring, pointing −X
+    [0, -EM_DIST,  Math.PI / 2],   // bottom of ring, pointing +X
+  ]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 8), arrowMat);
+    cone.position.set(x, 0, z);
+    cone.rotation.z = rotZ;
+    scene.add(cone);
+  }
+
+  // Label sprite: "Moon's orbit"
+  const lc = document.createElement('canvas');
+  lc.width = 320; lc.height = 56;
+  const lx = lc.getContext('2d');
+  lx.fillStyle = 'rgba(0,0,0,0)';
+  lx.fillRect(0, 0, 320, 56);
+  lx.fillStyle = '#8aaabf';
+  lx.font = '500 28px DM Sans, system-ui, sans-serif';
+  lx.textAlign = 'center';
+  lx.fillText("Moon's orbit", 160, 40);
+  const labelTex = new THREE.CanvasTexture(lc);
+  const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex, transparent: true, opacity: 0.85 }));
+  labelSprite.scale.set(3.2, 0.56, 1);
+  labelSprite.position.set(-EM_DIST * 0.7, 0.35, EM_DIST * 0.7);
+  scene.add(labelSprite);
 })();
 
 // ── Reference / orbital plane ─────────────────────────────────────────────────
@@ -418,23 +476,23 @@ scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x88e08c
 // ── Spacecraft marker ─────────────────────────────────────────────────────────
 
 const scMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(0.06, 16, 16),
+  new THREE.SphereGeometry(0.018, 12, 12),
   new THREE.MeshBasicMaterial({ color: 0xffffff })
 );
 scene.add(scMesh);
 
 // Glow sprite around spacecraft
 const glowMat = new THREE.SpriteMaterial({
-  color: 0xffffff, transparent: true, opacity: 0.35, sizeAttenuation: true,
+  color: 0xffffff, transparent: true, opacity: 0.40, sizeAttenuation: true,
 });
 const glowSprite = new THREE.Sprite(glowMat);
-glowSprite.scale.set(0.55, 0.55, 1);
+glowSprite.scale.set(0.16, 0.16, 1);
 scene.add(glowSprite);
 
 // ── Closest-approach marker ───────────────────────────────────────────────────
 
 const caMarker = new THREE.Mesh(
-  new THREE.SphereGeometry(0.09, 16, 16),
+  new THREE.SphereGeometry(0.020, 12, 12),
   new THREE.MeshBasicMaterial({ color: 0xffaa40, transparent: true, opacity: 0 })
 );
 caMarker.position.copy(curvePts[caIdx]);
