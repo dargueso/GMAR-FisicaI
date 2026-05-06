@@ -1918,32 +1918,31 @@ scene.add(earthLabel);
 const moonLabel = makeLabel('Moon', '#c0c0c0');
 scene.add(moonLabel);
 
-// ── Sun (direction indicator, not to scale) ───────────────────────────────────
+// ── Sun direction arrow ───────────────────────────────────────────────────────
+// Arrow from Earth toward the Sun — direction only, not distance to scale.
 
-const SUN_DIST = 26;   // scene units — well outside Moon orbit (~10 units)
+const SUN_ARROW_LEN = 7;   // shorter than Moon orbit ring (~10 units)
+const SUN_HEAD_LEN  = 1.0;
+const SUN_HEAD_WID  = 0.4;
 
-const sunMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(0.7, 16, 16),
-  new THREE.MeshBasicMaterial({ color: 0xffee66 })
+const sunArrow = new THREE.ArrowHelper(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(0, 0, 0),
+  SUN_ARROW_LEN, 0xffee66, SUN_HEAD_LEN, SUN_HEAD_WID
 );
-scene.add(sunMesh);
+sunArrow.line.material.transparent = true;
+sunArrow.line.material.opacity = 0.85;
+scene.add(sunArrow);
 
-const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-  color: 0xffdd33, transparent: true, opacity: 0.22,
-}));
-sunGlow.scale.set(5.5, 5.5, 1);
-scene.add(sunGlow);
-
-const sunLabel = makeLabel('Sun', '#ffee66');
+const sunLabel = makeLabel('☀ Sun', '#ffee66');
 scene.add(sunLabel);
 
 function updateSun(jd) {
   const dir = sunDir(jd);
-  const pos = dir.clone().multiplyScalar(SUN_DIST);
-  sunMesh.position.copy(pos);
-  sunGlow.position.copy(pos);
-  sunLabel.position.set(pos.x, pos.y + 1.4, pos.z);
-  sunLight.position.copy(pos);
+  sunArrow.setDirection(dir);
+  const tip = dir.clone().multiplyScalar(SUN_ARROW_LEN + 1.6);
+  sunLabel.position.copy(tip);
+  sunLight.position.copy(dir.clone().multiplyScalar(30));
 }
 
 // ── Moon orbit ring ───────────────────────────────────────────────────────────
