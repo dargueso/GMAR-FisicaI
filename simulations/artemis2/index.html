@@ -1919,29 +1919,17 @@ const moonLabel = makeLabel('Moon', '#c0c0c0');
 scene.add(moonLabel);
 
 // ── Sun direction arrow ───────────────────────────────────────────────────────
-// Arrow from Earth toward the Sun — direction only, not distance to scale.
-
-const SUN_ARROW_LEN = 7;   // shorter than Moon orbit ring (~10 units)
-const SUN_HEAD_LEN  = 1.0;
-const SUN_HEAD_WID  = 0.4;
 
 const sunArrow = new THREE.ArrowHelper(
-  new THREE.Vector3(1, 0, 0),
-  new THREE.Vector3(0, 0, 0),
-  SUN_ARROW_LEN, 0xffee66, SUN_HEAD_LEN, SUN_HEAD_WID
+  new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0),
+  1.5, 0xffdd55, 0.5, 0.18
 );
-sunArrow.line.material.transparent = true;
-sunArrow.line.material.opacity = 0.85;
 scene.add(sunArrow);
-
-const sunLabel = makeLabel('☀ Sun', '#ffee66');
-scene.add(sunLabel);
 
 function updateSun(jd) {
   const dir = sunDir(jd);
+  sunArrow.position.copy(dir.clone().multiplyScalar(11));
   sunArrow.setDirection(dir);
-  const tip = dir.clone().multiplyScalar(SUN_ARROW_LEN + 1.6);
-  sunLabel.position.copy(tip);
   sunLight.position.copy(dir.clone().multiplyScalar(30));
 }
 
