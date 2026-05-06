@@ -47,6 +47,14 @@
     header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
     header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
 
+    .back-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.8rem; color: var(--clr-accent); text-decoration: none;
+      padding: 5px 12px; border: 1px solid var(--clr-accent); border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .back-link:hover { background: var(--clr-accent); color: #fff; }
+
     .main-layout {
       display: flex;
       flex-direction: column;
@@ -168,6 +176,7 @@
 </head>
 <body>
 
+<a class="back-link" href="/#teaching">← Teaching</a>
 <header>
   <h1>Conservation of Angular Momentum</h1>
   <p>Slide the mass radially — ω adjusts so that L = I·ω stays constant</p>
@@ -234,9 +243,10 @@ function render() {
 
   ctx.clearRect(0, 0, W, H);
 
-  // Pixels per metre — disc fills ~40 % of the shorter dimension.
+  // Fixed pixels-per-metre so the disc visually grows/shrinks with R.
+  // Reference: R=1.5 m fills ~40 % of the shorter canvas dimension.
   const r     = SIM.rFrac * SIM.R;
-  const scale = Math.min(W, H) * 0.40 / SIM.R;
+  const scale = Math.min(W, H) * 0.267;   // px / m  (fixed)
   const dPx   = SIM.R * scale;
   const mPx   = r * scale;
 

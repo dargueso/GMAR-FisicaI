@@ -78,6 +78,13 @@
     .fact-label { font-size: 0.7rem; color: var(--clr-text-muted); }
     .fact-value { font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .hint { font-size: 0.75rem; color: var(--clr-text-muted); line-height: 1.55; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.8rem; color: var(--clr-accent); text-decoration: none;
+      padding: 5px 12px; border: 1px solid var(--clr-accent); border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .back-link:hover { background: var(--clr-accent); color: #fff; }
     @media (min-width: 1100px) {
       body { padding: 24px 40px; }
       .main-layout { flex-direction: row; align-items: flex-start; max-width: 1120px; gap: 28px; }
@@ -88,6 +95,7 @@
   </style>
 </head>
 <body>
+<a class="back-link" href="/#teaching">← Teaching</a>
 <header>
   <h1>Artemis I &amp; II — 3D Trajectories</h1>
   <p>Real NASA OEM data · Earth-centred inertial frame · Bodies &amp; Moon orbit to scale</p>
