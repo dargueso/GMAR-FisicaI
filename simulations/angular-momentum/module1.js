@@ -11,27 +11,28 @@ class Module1 {
   constructor() {
     this.angle = 0;
     this.s = {
-      M: 3.0, R: 1.5,   // disc mass (kg) and radius (m)
-      m: 5.0, r: 1.2,   // sliding mass (kg) and position (m)
-      omega0: 1.0,       // reference ω that defines L
+      M: 3.0, R: 1.5,      // disc mass (kg) and radius (m)
+      m: 5.0, rFrac: 0.80, // sliding mass (kg) and position as fraction of R
+      omega0: 1.0,          // reference ω that defines L
       omega: 1.0, I: 0, L: 0,
       running: true, speed: 1.0,
     };
     this._freezeL();
   }
 
+  _r()       { return this.s.rFrac * this.s.R; }
   _discI()   { return 0.5 * this.s.M * this.s.R * this.s.R; }
-  _massI(r)  { return this.s.m * r * r; }
-  _totalI(r) { return this._discI() + this._massI(r); }
+  _massI()   { return this.s.m * this._r() * this._r(); }
+  _totalI()  { return this._discI() + this._massI(); }
 
   _freezeL() {
     const s = this.s;
-    s.I = this._totalI(s.r); s.omega = s.omega0; s.L = s.I * s.omega;
+    s.I = this._totalI(); s.omega = s.omega0; s.L = s.I * s.omega;
   }
 
-  _applyRadius(r) {
+  _applyFrac(frac) {
     const s = this.s;
-    s.r = r; s.I = this._totalI(r); s.omega = s.I > 1e-9 ? s.L / s.I : 0;
+    s.rFrac = frac; s.I = this._totalI(); s.omega = s.I > 1e-9 ? s.L / s.I : 0;
   }
 
   init(ctx) {
@@ -50,8 +51,9 @@ class Module1 {
     const cx = W / 2, cy = H / 2;
     ctx.clearRect(0, 0, W, H);
 
+    const r = this._r();
     const scale = Math.min(W, H) * 0.40 / s.R;
-    const dPx = s.R * scale, mPx = s.r * scale;
+    const dPx = s.R * scale, mPx = r * scale;
 
     // Disc
     ctx.fillStyle = 'rgba(55,65,100,0.90)';
@@ -132,8 +134,8 @@ class Module1 {
       ['L', s.L.toFixed(2),            'kg·m²/s', true],
       ['ω', s.omega.toFixed(2),         'rad/s'],
       ['I', s.I.toFixed(2),             'kg·m²'],
-      ['v', (s.omega*s.r).toFixed(2),   'm/s'],
-      ['r', s.r.toFixed(2),             'm'],
+      ['v', (s.omega*r).toFixed(2),      'm/s'],
+      ['r', r.toFixed(2),               'm'],
     ];
     let ty = 22;
     for (const [lbl, val, unit, gold] of rows) {
@@ -148,32 +150,26 @@ class Module1 {
   buildControls(panel) {
     panel.innerHTML = '';
     const s = this.s;
-    let rSliderEl = null, rValEl = null, playBtn = null;
+    let playBtn = null;
 
     addSection(panel, 'Disc');
     addSlider(panel, 'Disc mass M', 'kg', 1, 30, 0.1, s.M,
-      v => { s.M = v; this._applyRadius(s.r); });
-    addSlider(panel, 'Disc radius R', 'm', 0.5, 3, 0.05, s.R, v => {
-      s.R = v;
-      if (s.r > s.R) s.r = s.R * 0.9;
-      this._applyRadius(s.r);
-      if (rSliderEl) { rSliderEl.max = s.R.toFixed(2); rSliderEl.value = s.r; }
-      if (rValEl)    rValEl.textContent = `${s.r.toFixed(2)} m`;
-    });
+      v => { s.M = v; this._applyFrac(s.rFrac); });
+    addSlider(panel, 'Disc radius R', 'm', 0.5, 3, 0.05, s.R,
+      v => { s.R = v; this._applyFrac(s.rFrac); });
 
     addSection(panel, 'Sliding mass');
     addSlider(panel, 'Mass m', 'kg', 0.1, 20, 0.1, s.m,
-      v => { s.m = v; this._applyRadius(s.r); });
+      v => { s.m = v; this._applyFrac(s.rFrac); });
 
     addSection(panel, 'Initial conditions');
     addSlider(panel, 'Angular velocity ω₀', 'rad/s', 0.2, 10, 0.1, s.omega0, v => {
-      s.omega0 = v; this._freezeL(); this._applyRadius(s.r);
+      s.omega0 = v; this._freezeL(); this._applyFrac(s.rFrac);
     });
 
     addSection(panel, 'Radial position  ← move this');
-    const rRow = addSlider(panel, 'Mass position r', 'm', 0.05, s.R, 0.01, s.r,
-      v => this._applyRadius(v), true);
-    rSliderEl = rRow.slider; rValEl = rRow.valEl;
+    addSlider(panel, 'Position r / R', '', 0.05, 1.0, 0.01, s.rFrac,
+      v => this._applyFrac(v), true);
 
     addSection(panel, 'Playback');
     addSlider(panel, 'Speed', '×', 0.1, 5, 0.1, s.speed, v => { s.speed = v; });
@@ -191,7 +187,7 @@ class Module1 {
     resetBtn.textContent = 'Reset'; resetBtn.style.flex = '1';
     resetBtn.addEventListener('click', () => {
       this.angle = 0; s.running = true; playBtn.textContent = 'Pause';
-      this._freezeL(); this._applyRadius(s.r);
+      this._freezeL(); this._applyFrac(s.rFrac);
     });
 
     btnRow.append(playBtn, resetBtn); panel.appendChild(btnRow);

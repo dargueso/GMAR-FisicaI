@@ -195,7 +195,7 @@ const SIM = {
   M:      3.0,   // disc mass       (kg)
   R:      1.5,   // disc radius     (m)
   m:      5.0,   // sliding mass    (kg)
-  r:      1.2,   // mass position   (m) — the interactive variable
+  rFrac:  0.80,  // mass position as fraction of R — the interactive variable
   omega0: 1.0,   // reference ω used to define L  (rad/s)
   // derived & animated
   angle:  0,
@@ -211,13 +211,15 @@ function massI(m, r)    { return m * r * r; }
 function totalI(M,R,m,r){ return discI(M,R) + massI(m,r); }
 
 function freezeL() {
-  SIM.I     = totalI(SIM.M, SIM.R, SIM.m, SIM.r);
+  const r   = SIM.rFrac * SIM.R;
+  SIM.I     = totalI(SIM.M, SIM.R, SIM.m, r);
   SIM.omega = SIM.omega0;
   SIM.L     = SIM.I * SIM.omega;
 }
 
-function applyRadius(r) {
-  SIM.r     = r;
+function applyFrac(frac) {
+  SIM.rFrac = frac;
+  const r   = frac * SIM.R;
   SIM.I     = totalI(SIM.M, SIM.R, SIM.m, r);
   SIM.omega = SIM.I > 1e-9 ? SIM.L / SIM.I : 0;
 }
@@ -233,9 +235,10 @@ function render() {
   ctx.clearRect(0, 0, W, H);
 
   // Pixels per metre — disc fills ~40 % of the shorter dimension.
+  const r     = SIM.rFrac * SIM.R;
   const scale = Math.min(W, H) * 0.40 / SIM.R;
   const dPx   = SIM.R * scale;
-  const mPx   = SIM.r * scale;
+  const mPx   = r * scale;
 
   // ── Disc fill ─────────────────────────────────────────────────────────────
   ctx.fillStyle = 'rgba(55,65,100,0.90)';
@@ -305,7 +308,7 @@ function render() {
   ctx.fill();
 
   // Tangential velocity arrow v = ω·r
-  const v      = SIM.omega * SIM.r;
+  const v      = SIM.omega * r;
   const vDir   = Math.sign(SIM.omega || 1);
   const perpA  = ta + vDir * Math.PI / 2;
   const vPx    = Math.min(v * scale * 0.22, dPx * 0.7);
@@ -349,8 +352,8 @@ function render() {
     { label: 'L',  val: SIM.L.toFixed(2),           unit: 'kg·m²/s', gold: true },
     { label: 'ω',  val: SIM.omega.toFixed(2),        unit: 'rad/s' },
     { label: 'I',  val: SIM.I.toFixed(2),            unit: 'kg·m²' },
-    { label: 'v',  val: (SIM.omega * SIM.r).toFixed(2), unit: 'm/s' },
-    { label: 'r',  val: SIM.r.toFixed(2),            unit: 'm' },
+    { label: 'v',  val: (SIM.omega * r).toFixed(2),  unit: 'm/s' },
+    { label: 'r',  val: r.toFixed(2),                unit: 'm' },
   ];
   ctx.font = '12px ui-monospace, Menlo, monospace';
   let ty = 22;
@@ -461,43 +464,30 @@ function frame(t) {
 
 // ── Controls ──────────────────────────────────────────────────────────────────
 
-let rSliderEl = null;
-let rValEl    = null;
-let playBtn   = null;
+let playBtn = null;
 
 function buildControls() {
   const panel = document.getElementById('controls');
   panel.innerHTML = '';
 
   addSection(panel, 'Disc');
-  addSlider(panel, 'Disc mass M', 'kg',    1, 30,  0.1,  SIM.M, v => { SIM.M = v; applyRadius(SIM.r); });
-  addSlider(panel, 'Disc radius R', 'm',   0.5, 3, 0.05, SIM.R, v => {
-    SIM.R = v;
-    if (SIM.r > SIM.R) { SIM.r = SIM.R * 0.9; }
-    applyRadius(SIM.r);
-    if (rSliderEl) {
-      rSliderEl.max   = SIM.R.toFixed(2);
-      rSliderEl.value = SIM.r.toFixed(2);
-      if (rValEl) rValEl.textContent = `${SIM.r.toFixed(2)} m`;
-    }
-  });
+  addSlider(panel, 'Disc mass M', 'kg',    1, 30,  0.1,  SIM.M, v => { SIM.M = v; applyFrac(SIM.rFrac); });
+  addSlider(panel, 'Disc radius R', 'm',   0.5, 3, 0.05, SIM.R, v => { SIM.R = v; applyFrac(SIM.rFrac); });
 
   addSection(panel, 'Sliding mass');
-  addSlider(panel, 'Mass m', 'kg', 0.1, 20, 0.1, SIM.m, v => { SIM.m = v; applyRadius(SIM.r); });
+  addSlider(panel, 'Mass m', 'kg', 0.1, 20, 0.1, SIM.m, v => { SIM.m = v; applyFrac(SIM.rFrac); });
 
   addSection(panel, 'Initial conditions');
   addSlider(panel, 'Angular velocity ω₀', 'rad/s', 0.2, 10, 0.1, SIM.omega0, v => {
     SIM.omega0 = v;
     freezeL();
-    applyRadius(SIM.r);
+    applyFrac(SIM.rFrac);
   });
 
   addSection(panel, 'Radial position  ← move this');
-  const rRow = addSlider(panel, 'Mass position r', 'm', 0.05, SIM.R, 0.01, SIM.r, v => {
-    applyRadius(v);
+  const rRow = addSlider(panel, 'Position r / R', '', 0.05, 1.0, 0.01, SIM.rFrac, v => {
+    applyFrac(v);
   }, true /* primary */);
-  rSliderEl = rRow.slider;
-  rValEl    = rRow.valEl;
 
   addSection(panel, 'Playback');
   addSlider(panel, 'Speed', '×', 0.1, 5, 0.1, SIM.speed, v => { SIM.speed = v; });
@@ -522,7 +512,7 @@ function buildControls() {
     SIM.running = true;
     playBtn.textContent = 'Pause';
     freezeL();
-    applyRadius(SIM.r);
+    applyFrac(SIM.rFrac);
   });
 
   btnRow.appendChild(playBtn);
