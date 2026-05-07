@@ -48,9 +48,18 @@
     header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
 
     .back-link {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 0.8rem; color: var(--clr-accent); text-decoration: none;
-      padding: 5px 12px; border: 1px solid var(--clr-accent); border-radius: 6px;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 100;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      padding: 7px 14px;
+      color: var(--clr-text);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-family: inherit;
       transition: background 0.15s, color 0.15s;
     }
     .back-link:hover { background: var(--clr-accent); color: #fff; }
@@ -176,7 +185,7 @@
 </head>
 <body>
 
-<a class="back-link" href="/#teaching">← Teaching</a>
+<a class="back-link" href="/#teaching">← Back to website</a>
 <header>
   <h1>Conservation of Angular Momentum</h1>
   <p>Slide the mass radially — ω adjusts so that L = I·ω stays constant</p>
