@@ -78,6 +78,9 @@
     .fact-label { font-size: 0.7rem; color: var(--clr-text-muted); }
     .fact-value { font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .hint { font-size: 0.75rem; color: var(--clr-text-muted); line-height: 1.55; }
+    .source { font-size: 0.68rem; color: var(--clr-text-muted); line-height: 1.5; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--clr-border); }
+    .source a { color: var(--clr-accent); text-decoration: none; }
+    .source a:hover { text-decoration: underline; }
     .back-link {
       position: fixed;
       top: 16px;
@@ -2518,7 +2521,8 @@ const MISSIONS_DATA = {
       { t0: 0.970, t1: 1.000, label: 'Re-entry' },
     ],
     facts: { Launch: '1968-12-21', Profile: 'Free-return + 10 lunar orbits', Crew: 'Crewed (3)' },
-    hint: 'Outbound trajectory from real S-IVB HORIZONS data (JPL); lunar orbit computed analytically at 112 km altitude; return arc is a physics-based Bezier approximation. First humans to orbit the Moon.',
+    hint: 'Outbound trajectory from real S-IVB HORIZONS data (JPL); lunar orbit computed analytically at 112 km altitude; return arc is a physics-based Bézier approximation. First humans to orbit the Moon.',
+    source: 'Outbound: <a href="https://ssd.jpl.nasa.gov/horizons/" target="_blank">NASA JPL Horizons</a> (S-IVB, object −135A). Lunar orbit &amp; return: synthetic, <a href="https://doi.org/10.1002/asna.2103690105" target="_blank">Meeus Ch. 47</a> lunar ephemeris.',
   },
   a11: {
     id: 'a11', name: 'Apollo 11', pts: Apollo11_TRAJ_PTS,
@@ -2532,7 +2536,8 @@ const MISSIONS_DATA = {
       { t0: 0.970, t1: 1.000, label: 'Re-entry' },
     ],
     facts: { Launch: '1969-07-16', Profile: 'Free-return + 30 lunar orbits', Crew: 'Crewed (3)' },
-    hint: 'First crewed lunar landing (Sea of Tranquility). Outbound and return arcs are Bezier approximations; 30 circular orbits at 111 km altitude computed analytically using the Meeus lunar ephemeris.',
+    hint: 'First crewed lunar landing (Sea of Tranquility). Outbound and return arcs are Bézier approximations; 30 circular orbits at 111 km altitude computed analytically.',
+    source: 'Synthetic trajectory. Transit arcs: cubic Bézier with C¹-continuous junctions. Lunar orbit: analytical circles centred on <a href="https://doi.org/10.1002/asna.2103690105" target="_blank">Meeus Ch. 47</a> ephemeris position.',
   },
   a13: {
     id: 'a13', name: 'Apollo 13', pts: Apollo13_TRAJ_PTS,
@@ -2547,6 +2552,7 @@ const MISSIONS_DATA = {
     ],
     facts: { Launch: '1970-04-11', Profile: 'Free-return flyby (abort)', Crew: 'Crewed (3)' },
     hint: 'Aborted mission — oxygen tank explosion April 13 forced a free-return trajectory. The crew looped around the Moon at 254 km altitude and returned safely. Closest approach visualised as a 240° swing-around arc.',
+    source: 'Synthetic trajectory. Transit arcs: cubic Bézier with C¹-continuous junctions. 240° free-return arc centred on <a href="https://doi.org/10.1002/asna.2103690105" target="_blank">Meeus Ch. 47</a> ephemeris position.',
   },
   a2: {
     id: 'a2', name: 'Artemis II', pts: A2_TRAJ_PTS,
@@ -2562,6 +2568,7 @@ const MISSIONS_DATA = {
     ],
     facts: { Launch: '2026 (planned)', Profile: 'Hybrid free-return', Crew: 'Crewed flyby (4)' },
     hint: 'Real NASA OEM trajectory data (EME2000 frame). First ~21 hours: parking orbit; TLI burn launches toward Moon. "Near Earth" camera shows the parking orbit shape.',
+    source: 'Trajectory: <a href="https://www.nasa.gov/mission/artemis-ii/" target="_blank">NASA Artemis II</a> planning OEM file (Dec 2022, post-TLI, as-flown reference). EME2000 frame.',
   },
   a1: {
     id: 'a1', name: 'Artemis I', pts: A1_TRAJ_PTS,
@@ -2580,6 +2587,7 @@ const MISSIONS_DATA = {
     ],
     facts: { Launch: '2022-11-16', Profile: 'Distant Retrograde Orbit', Crew: 'Uncrewed' },
     hint: 'Real NASA OEM data (EME2000 frame). Data starts at ICPS/Orion separation (post-TLI). The spacecraft loops in a large retrograde orbit beyond the Moon before returning.',
+    source: 'Trajectory: <a href="https://www.nasa.gov/mission/artemis-i/" target="_blank">NASA Artemis I</a> as-flown OEM file (Nov 2022). EME2000 frame.',
   },
 };
 
@@ -2772,6 +2780,15 @@ new THREE.TextureLoader().load(
 );
 const earthMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 48, 48), earthMat);
 scene.add(earthMesh);
+
+const cloudsMat = new THREE.MeshPhongMaterial({ transparent: true, opacity: 0.85, depthWrite: false });
+new THREE.TextureLoader().load(
+  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r158/examples/textures/planets/earth_clouds_1024.jpg',
+  tex => { cloudsMat.alphaMap = tex; cloudsMat.needsUpdate = true; }
+);
+const earthClouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.008, 48, 48), cloudsMat);
+scene.add(earthClouds);
+
 const earthAtmo = new THREE.Mesh(
   new THREE.SphereGeometry(EARTH_R * 1.6, 32, 32),
   new THREE.MeshBasicMaterial({ color: 0x4488cc, transparent: true, opacity: 0.18, side: THREE.BackSide })
@@ -3039,6 +3056,7 @@ function scaleBodiesToCamera() {
   const dEarth = camera.position.length();
   const s = Math.max(1, dEarth / REF_DIST);
   earthMesh.scale.setScalar(s);
+  earthClouds.scale.setScalar(s);
   earthAtmo.scale.setScalar(s);
   earthLabel.position.set(0, EARTH_R * s * 2.5 + 0.28 * s, 0);
   earthLabel.visible = dEarth > 3;
@@ -3192,6 +3210,12 @@ function buildControls() {
   const hint = document.createElement('p'); hint.className = 'hint';
   hint.textContent = activeMission.hint || '';
   panel.appendChild(hint);
+
+  if (activeMission.source) {
+    const src = document.createElement('p'); src.className = 'source';
+    src.innerHTML = '<strong>Data source:</strong> ' + activeMission.source;
+    panel.appendChild(src);
+  }
 }
 
 function addSection(panel, title) {
