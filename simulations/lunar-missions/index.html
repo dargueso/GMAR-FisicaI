@@ -2781,13 +2781,6 @@ new THREE.TextureLoader().load(
 const earthMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 48, 48), earthMat);
 scene.add(earthMesh);
 
-const cloudsMat = new THREE.MeshPhongMaterial({ transparent: true, opacity: 0.85, depthWrite: false });
-new THREE.TextureLoader().load(
-  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r158/examples/textures/planets/earth_clouds_1024.jpg',
-  tex => { cloudsMat.alphaMap = tex; cloudsMat.needsUpdate = true; }
-);
-const earthClouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.008, 48, 48), cloudsMat);
-scene.add(earthClouds);
 
 const earthAtmo = new THREE.Mesh(
   new THREE.SphereGeometry(EARTH_R * 1.6, 32, 32),
@@ -2924,13 +2917,37 @@ trailMat = new THREE.LineBasicMaterial({ color: activeMission.color });
 const trailLine = new THREE.Line(trailGeo, trailMat);
 scene.add(trailLine);
 
-// ── Spacecraft marker ─────────────────────────────────────────────────────────
+// ── Spacecraft model ──────────────────────────────────────────────────────────
+// All parts built with local +Z = nose direction; oriented to face travel dir.
+const SC = 0.018;   // base scale (same as old sphere radius)
 
-const scMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(0.018, 12, 12),
-  new THREE.MeshBasicMaterial({ color: 0xffffff })
-);
-scene.add(scMesh);
+const scGroup = new THREE.Group();
+
+// Main body — cylinder along Z
+const _bodyGeo = new THREE.CylinderGeometry(SC * 0.32, SC * 0.36, SC * 2.6, 10);
+_bodyGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+scGroup.add(new THREE.Mesh(_bodyGeo, new THREE.MeshPhongMaterial({ color: 0xc8c8c8, shininess: 80 })));
+
+// Nose cone — tip pointing +Z
+const _noseGeo = new THREE.ConeGeometry(SC * 0.32, SC * 0.9, 10);
+_noseGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+_noseGeo.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, SC * 1.75));
+scGroup.add(new THREE.Mesh(_noseGeo, new THREE.MeshPhongMaterial({ color: 0xeeeeee, shininess: 60 })));
+
+// Engine bell — wider opening at -Z
+const _bellGeo = new THREE.ConeGeometry(SC * 0.42, SC * 0.55, 10);
+_bellGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+_bellGeo.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, -SC * 1.6));
+scGroup.add(new THREE.Mesh(_bellGeo, new THREE.MeshPhongMaterial({ color: 0x777777, shininess: 30 })));
+
+// Solar panels — two flat boxes extending in X
+const _wingMat = new THREE.MeshPhongMaterial({ color: 0x1a5090, shininess: 120 });
+const _wingGeo = () => { const g = new THREE.BoxGeometry(SC * 2.6, SC * 0.06, SC * 0.85); return g; };
+const _wing1 = new THREE.Mesh(_wingGeo(), _wingMat); _wing1.position.set( SC * 1.6, 0, SC * 0.1);
+const _wing2 = new THREE.Mesh(_wingGeo(), _wingMat); _wing2.position.set(-SC * 1.6, 0, SC * 0.1);
+scGroup.add(_wing1, _wing2);
+
+scene.add(scGroup);
 
 
 // ── Camera orbit controls ─────────────────────────────────────────────────────
@@ -3028,8 +3045,11 @@ function update(dt) {
   moonLabel.position.set(mVec.x, mVec.y + MOON_R * 2.5 + 0.28, mVec.z);
   updateSun(jd);
 
-  const sc = scPos(state.t);
-  scMesh.position.set(sc.x, sc.y, sc.z);
+  const sc  = scPos(state.t);
+  scGroup.position.set(sc.x, sc.y, sc.z);
+  const sc1 = scPos(Math.min(1, state.t + 1e-4));
+  const tDir = new THREE.Vector3(sc1.x - sc.x, sc1.y - sc.y, sc1.z - sc.z);
+  if (tDir.lengthSq() > 0) scGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tDir.normalize());
 
   const pts  = activeMission.pts;
   const secs = state.t * MISSION_SECS;
@@ -3056,7 +3076,6 @@ function scaleBodiesToCamera() {
   const dEarth = camera.position.length();
   const s = Math.max(1, dEarth / REF_DIST);
   earthMesh.scale.setScalar(s);
-  earthClouds.scale.setScalar(s);
   earthAtmo.scale.setScalar(s);
   earthLabel.position.set(0, EARTH_R * s * 2.5 + 0.28 * s, 0);
   earthLabel.visible = dEarth > 3;
@@ -3163,8 +3182,11 @@ function buildControls() {
     moonMesh.position.copy(mVec);
     moonLabel.position.set(mVec.x, mVec.y + MOON_R * 2.5 + 0.28, mVec.z);
     updateSun(jd);
-    const sc = scPos(state.t);
-    scMesh.position.set(sc.x, sc.y, sc.z);
+    const sc  = scPos(state.t);
+    scGroup.position.set(sc.x, sc.y, sc.z);
+    const sc1s = scPos(Math.min(1, state.t + 1e-4));
+    const tDirs = new THREE.Vector3(sc1s.x - sc.x, sc1s.y - sc.y, sc1s.z - sc.z);
+    if (tDirs.lengthSq() > 0) scGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tDirs.normalize());
     updateHUD(mVec);
   });
   panel.appendChild(tRow);
