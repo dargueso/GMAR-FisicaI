@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulleys — Atwood Machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .graphs-col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+    }
+    #cc-scene { aspect-ratio: 16 / 9; }
+    #cc-graph { aspect-ratio: 16 / 7; }
+    .canvas-container canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
+
+    /* ── Controls panel ───────────────────────────────────────────────────── */
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Mode toggle ──────────────────────────────────────────────────────── */
+    .mode-toggle {
+      display: flex;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 7px 10px;
+      border: none;
+      border-right: 1px solid var(--clr-accent);
+      border-radius: 0;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn:last-child { border-right: none; }
+    .mode-btn:hover  { background: var(--clr-accent-light); }
+    .mode-btn.active { background: var(--clr-accent); color: #fff; }
+
+    .controls h2 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--clr-text-muted);
+      margin-bottom: -4px;
+    }
+
+    .ctrl-inputs { display: flex; flex-direction: column; gap: 10px; }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--clr-text-muted);
+      width: 160px;
+      flex-shrink: 0;
+    }
+    input[type=number] {
+      flex: 1;
+      min-width: 0;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=number]:focus { outline: none; border-color: var(--clr-accent); }
+
+    /* Pulley section separator */
+    .ctrl-inputs + .ctrl-inputs {
+      padding-top: 10px;
+      border-top: 1px dashed var(--clr-border);
+    }
+
+    .button-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover   { background: var(--clr-accent-light); }
+    button.primary { background: var(--clr-accent); color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+
+    /* ── Stats grid ───────────────────────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 12px 14px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-key   { color: var(--clr-text-muted); }
+    .stat-value { color: var(--clr-text); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* ── Equations section ────────────────────────────────────────────────── */
+    .equations {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .equations h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; }
+    .eq-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 640px)  { .eq-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) {
+      .equations { max-width: 1080px; }
+      .eq-grid   { grid-template-columns: repeat(4, 1fr); }
+    }
+    .eq-title {
+      font-size: 0.72rem; color: var(--clr-text-muted); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .eq      { font-size: 1rem; line-height: 2.2; color: var(--clr-text); }
+    .eq-note { font-size: 0.72rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .hint { font-size: 0.75rem; color: var(--clr-text-muted); text-align: center; }
+
+    /* ── Desktop layout ───────────────────────────────────────────────────── */
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row; align-items: flex-start; max-width: 1080px; gap: 28px;
+      }
+      .graphs-col { flex: 1 1 0; max-width: none; min-width: 420px; }
+      .controls   { flex: 0 0 310px; max-width: 310px; padding: 18px; }
+      .control-label { width: 110px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Pulleys — Atwood Machine</h1>
+  <p>Massless inextensible rope. No friction.</p>
+</header>
+
+<div class="main-layout">
+
+  <!-- ── Graphs ── -->
+  <div class="graphs-col">
+    <div class="canvas-container" id="cc-scene">
+      <canvas id="canvas-scene"></canvas>
+    </div>
+    <div class="canvas-container" id="cc-graph">
+      <canvas id="canvas-graph"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Controls ── -->
+  <div class="controls">
+
+    <!-- Mode toggle -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-massless">Massless pulley</button>
+      <button class="mode-btn"        id="btn-massive" >Massive pulley</button>
+    </div>
+
+    <h2>Masses</h2>
+
+    <div class="ctrl-inputs">
+      <div class="control-row">
+        <span class="control-label">Mass m₁</span>
+        <input type="number" id="inp-m1" value="1" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Mass m₂</span>
+        <input type="number" id="inp-m2" value="2" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Gravity g</span>
+        <input type="number" id="inp-g" value="9.81" step="0.01" min="0.01">
+        <span class="stat-key">m/s²</span>
+      </div>
+    </div>
+
+    <!-- Pulley inputs — only visible in massive mode -->
+    <div class="ctrl-inputs" id="ctrl-pulley" style="display:none">
+      <div class="control-row">
+        <span class="control-label">Pulley mass M</span>
+        <input type="number" id="inp-pM" value="1" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Pulley radius R</span>
+        <input type="number" id="inp-pR" value="0.1" step="0.01" min="0.01">
+        <span class="stat-key">m</span>
+      </div>
+    </div>
+
+    <!-- Stats: massless mode -->
+    <div class="stats" id="stats-massless">
+      <span class="stat-key">Acceleration a</span>
+      <span class="stat-value" id="ml-a">—</span>
+      <span class="stat-key">Tension T</span>
+      <span class="stat-value" id="ml-T">—</span>
+      <span class="stat-key">Weight W₁ = m₁g</span>
+      <span class="stat-value" id="ml-W1">—</span>
+      <span class="stat-key">Weight W₂ = m₂g</span>
+      <span class="stat-value" id="ml-W2">—</span>
+    </div>
+
+    <!-- Stats: massive mode -->
+    <div class="stats" id="stats-massive" style="display:none">
+      <span class="stat-key">Acceleration a</span>
+      <span class="stat-value" id="mv-a">—</span>
+      <span class="stat-key">Tension T₁</span>
+      <span class="stat-value" id="mv-T1">—</span>
+      <span class="stat-key">Tension T₂</span>
+      <span class="stat-value" id="mv-T2">—</span>
+      <span class="stat-key">Weight W₁ = m₁g</span>
+      <span class="stat-value" id="mv-W1">—</span>
+      <span class="stat-key">Weight W₂ = m₂g</span>
+      <span class="stat-value" id="mv-W2">—</span>
+      <span class="stat-key">Inertia I = ½MR²</span>
+      <span class="stat-value" id="mv-I">—</span>
+    </div>
+
+    <div class="button-row">
+      <button id="btn-launch" class="primary">Start</button>
+      <button id="btn-pause">Pause</button>
+      <button id="btn-clear">Clear</button>
+    </div>
+
+    <p class="hint">Enter = start &nbsp;·&nbsp; Graph shows v(t) = a·t &nbsp;·&nbsp; Slope = acceleration</p>
+
+  </div><!-- .controls -->
+
+</div><!-- .main-layout -->
+
+<!-- ════ EQUATIONS ════ -->
+
+<!-- Massless pulley equations -->
+<section class="equations" id="eq-massless">
+  <h2>Equations — Massless pulley (T₁ = T₂ = T)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Forces on m₁ (rising)</div>
+      <div class="eq" data-tex="T - m_1 g = m_1 a"></div>
+      <div class="eq-note">Positive upward for m₁.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Forces on m₂ (falling)</div>
+      <div class="eq" data-tex="m_2 g - T = m_2 a"></div>
+      <div class="eq-note">Positive downward for m₂.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">System acceleration</div>
+      <div class="eq" data-tex="a = \dfrac{(m_2 - m_1)\,g}{m_1 + m_2}"></div>
+      <div class="eq-note">If m₂ &gt; m₁ → a &gt; 0. If m₁ = m₂ → a = 0.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Rope tension</div>
+      <div class="eq" data-tex="T = \dfrac{2\,m_1 m_2\,g}{m_1 + m_2}"></div>
+      <div class="eq-note">Equal on both sides (massless, frictionless pulley).</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Massive pulley equations -->
+<section class="equations" id="eq-massive" style="display:none">
+  <h2>Equations — Massive pulley (solid disc, I = ½MR²)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Forces on m₁ (rising)</div>
+      <div class="eq" data-tex="T_1 - m_1 g = m_1 a"></div>
+      <div class="eq-note">T₁ ≠ T₂ because the pulley has inertia.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Forces on m₂ (falling)</div>
+      <div class="eq" data-tex="m_2 g - T_2 = m_2 a"></div>
+      <div class="eq-note">Positive downward for m₂.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Torque on the pulley</div>
+      <div class="eq" data-tex="(T_2 - T_1)\,R = I\alpha = \tfrac{1}{2}MR^2\!\cdot\!\dfrac{a}{R}"></div>
+      <div class="eq-note">α = a/R (no-slip condition on the rope).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Simplified torque</div>
+      <div class="eq" data-tex="T_2 - T_1 = \tfrac{1}{2}M\,a"></div>
+      <div class="eq-note">The tension difference drives rotation.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">System acceleration</div>
+      <div class="eq" data-tex="a = \dfrac{(m_2 - m_1)\,g}{m_1 + m_2 + \tfrac{1}{2}M}"></div>
+      <div class="eq-note">M/2 acts as an effective additional mass.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Tension T₁ (m₁ side)</div>
+      <div class="eq" data-tex="T_1 = m_1\,(g + a)"></div>
+      <div class="eq-note">Smaller than T₂ (m₁ rises, rope pulls it upward).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Tension T₂ (m₂ side)</div>
+      <div class="eq" data-tex="T_2 = m_2\,(g - a)"></div>
+      <div class="eq-note">Larger than T₁; the difference spins the pulley.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Moment of inertia</div>
+      <div class="eq" data-tex="I = \dfrac{1}{2}MR^2"></div>
+      <div class="eq-note">Uniform disc of mass M and radius R.</div>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+  document.querySelectorAll('.eq[data-tex]').forEach(el => {
+    katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+  });
+</script>
+
+<script src="physics.js"></script>
+<script src="scene.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>

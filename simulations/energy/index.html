@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy — Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    /* ── Mode toggle ──────────────────────────────────────────────────────── */
+    .mode-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--clr-accent);
+      border: 1px solid var(--clr-accent);
+      border-radius: 8px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .mode-btn {
+      padding: 9px 10px;
+      border: none;
+      border-radius: 0;
+      background: var(--clr-surface);
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      line-height: 1.25;
+    }
+    .mode-btn:hover:not(.active) { background: var(--clr-accent-light); }
+    .mode-btn.active { background: var(--clr-accent); color: #fff; }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .graphs-col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+    }
+    #cc-traj   { aspect-ratio: 16 / 9; }
+    #cc-energy { aspect-ratio: 16 / 7; }
+    .canvas-container canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
+
+    /* ── Controls panel ───────────────────────────────────────────────────── */
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--clr-text-muted);
+      width: 160px;
+      flex-shrink: 0;
+    }
+    input[type=number] {
+      flex: 1;
+      min-width: 0;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=number]:focus { outline: none; border-color: var(--clr-accent); }
+
+    .button-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover   { background: var(--clr-accent-light); }
+    button.primary { background: var(--clr-accent); color: #fff; }
+    button.primary:hover { filter: brightness(1.08); }
+
+    /* ── Stats grid ───────────────────────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 12px 14px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-key   { color: var(--clr-text-muted); }
+    .stat-value { color: var(--clr-text); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* ── Legend ───────────────────────────────────────────────────────────── */
+    .legend-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; padding: 6px 8px;
+      background: var(--clr-bg); border: 1px solid var(--clr-border); border-radius: 6px;
+    }
+    .legend-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .legend-params  { flex: 1; color: var(--clr-text); font-variant-numeric: tabular-nums; }
+    .legend-results { color: var(--clr-text-muted); font-variant-numeric: tabular-nums; }
+    .legend-remove {
+      padding: 0 8px; border: none; background: transparent;
+      color: var(--clr-text-muted); font-size: 1.1rem; line-height: 1; cursor: pointer;
+    }
+    .legend-remove:hover { color: var(--clr-text); background: transparent; }
+
+    .hint { font-size: 0.75rem; color: var(--clr-text-muted); text-align: center; }
+
+    /* ── Equations section ────────────────────────────────────────────────── */
+    .equations {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .equations h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; }
+    .eq-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 640px)  { .eq-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) {
+      .equations { max-width: 1080px; }
+      .eq-grid   { grid-template-columns: repeat(4, 1fr); }
+    }
+    .eq-title {
+      font-size: 0.72rem; color: var(--clr-text-muted); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .eq      { font-size: 1rem; line-height: 2.2; color: var(--clr-text); }
+    .eq-note { font-size: 0.72rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    /* ── Desktop layout ───────────────────────────────────────────────────── */
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row; align-items: flex-start; max-width: 1080px; gap: 28px;
+      }
+      .graphs-col { flex: 1 1 0; max-width: none; min-width: 420px; }
+      .controls   { flex: 0 0 330px; max-width: 330px; padding: 18px; }
+      .control-label { width: 120px; }
+      .legend-results { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Mechanical Energy — Simulator</h1>
+  <p>Constant gravity. Potential energy reference: y = 0 (base of the system).</p>
+</header>
+
+<div class="main-layout">
+
+  <!-- ── Graphs ── -->
+  <div class="graphs-col">
+    <div class="canvas-container" id="cc-traj">
+      <canvas id="canvas-traj"></canvas>
+    </div>
+    <div class="canvas-container" id="cc-energy">
+      <canvas id="canvas-energy"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Controls ── -->
+  <div class="controls">
+
+    <div class="mode-toggle">
+      <button id="btn-mode-proj"   class="mode-btn active">Projectile</button>
+      <button id="btn-mode-incl"   class="mode-btn">Inclined plane</button>
+      <button id="btn-mode-pend"   class="mode-btn">Pendulum</button>
+      <button id="btn-mode-spring" class="mode-btn">Spring</button>
+    </div>
+
+    <!-- ════ PROJECTILE CONTROLS ════ -->
+    <div id="ctrl-proj">
+
+      <div class="control-row">
+        <span class="control-label">Initial velocity v₀</span>
+        <input type="number" id="inp-v0" value="20" step="0.1" min="0">
+        <span class="stat-key">m/s</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Angle θ</span>
+        <input type="number" id="inp-angle" value="45" step="1" min="-90" max="90">
+        <span class="stat-key">°</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Gravity g</span>
+        <input type="number" id="inp-g" value="9.81" step="0.01" min="0">
+        <span class="stat-key">m/s²</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Initial height h₀</span>
+        <input type="number" id="inp-h0" value="0" step="0.1" min="0">
+        <span class="stat-key">m</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Mass m</span>
+        <input type="number" id="inp-mass" value="1" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+
+      <div class="stats">
+        <span class="stat-key">Total Em (conserved)</span>
+        <span class="stat-value" id="stat-em">—</span>
+        <span class="stat-key">Initial Ek</span>
+        <span class="stat-value" id="stat-ec0">—</span>
+        <span class="stat-key">Initial Ep</span>
+        <span class="stat-value" id="stat-ep0">—</span>
+        <span class="stat-key">Min Ek (apex)</span>
+        <span class="stat-value" id="stat-ec-apex">—</span>
+        <span class="stat-key">Max Ep (apex)</span>
+        <span class="stat-value" id="stat-ep-apex">—</span>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-launch" class="primary">Launch</button>
+        <button id="btn-pause">Pause</button>
+        <button id="btn-clear">Clear all</button>
+      </div>
+
+    </div><!-- #ctrl-proj -->
+
+    <!-- ════ INCLINED PLANE CONTROLS ════ -->
+    <div id="ctrl-incl" hidden>
+
+      <div class="control-row">
+        <span class="control-label">Mass m</span>
+        <input type="number" id="inp-incl-m" value="2" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Angle θ</span>
+        <input type="number" id="inp-incl-angle" value="30" step="1" min="0" max="89">
+        <span class="stat-key">°</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Friction coeff. μ</span>
+        <input type="number" id="inp-incl-mu" value="0.2" step="0.01" min="0">
+        <span class="stat-key"></span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Gravity g</span>
+        <input type="number" id="inp-incl-g" value="9.81" step="0.01" min="0.01">
+        <span class="stat-key">m/s²</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Initial position s₀</span>
+        <input type="number" id="inp-incl-s0" value="3.5" step="0.1" min="0.2" max="3.9">
+        <span class="stat-key">m</span>
+      </div>
+
+      <div class="stats">
+        <span class="stat-key">Initial Em₀</span>
+        <span class="stat-value" id="stat-incl-em0">—</span>
+        <span class="stat-key">Initial Ep</span>
+        <span class="stat-value" id="stat-incl-ep0">—</span>
+        <span class="stat-key">Ek at bottom</span>
+        <span class="stat-value" id="stat-incl-ecbot">—</span>
+        <span class="stat-key">Ep at bottom</span>
+        <span class="stat-value" id="stat-incl-epbot">—</span>
+        <span class="stat-key">Acceleration a</span>
+        <span class="stat-value" id="stat-incl-a">—</span>
+        <span class="stat-key">State</span>
+        <span class="stat-value" id="stat-incl-state">—</span>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-incl-launch" class="primary">Start</button>
+        <button id="btn-incl-pause">Pause</button>
+        <button id="btn-incl-clear">Clear all</button>
+      </div>
+
+    </div><!-- #ctrl-incl -->
+
+    <!-- ════ PENDULUM CONTROLS ════ -->
+    <div id="ctrl-pend" hidden>
+
+      <div class="control-row">
+        <span class="control-label">Mass m</span>
+        <input type="number" id="inp-pend-m" value="1" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Length L</span>
+        <input type="number" id="inp-pend-L" value="1" step="0.1" min="0.1">
+        <span class="stat-key">m</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Initial angle θ₀</span>
+        <input type="number" id="inp-pend-theta0" value="30" step="1" min="0" max="85">
+        <span class="stat-key">°</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Gravity g</span>
+        <input type="number" id="inp-pend-g" value="9.81" step="0.01" min="0.01">
+        <span class="stat-key">m/s²</span>
+      </div>
+
+      <div class="stats">
+        <span class="stat-key">Em (conserved)</span>
+        <span class="stat-value" id="stat-pend-em">—</span>
+        <span class="stat-key">Max Ek (bottom)</span>
+        <span class="stat-value" id="stat-pend-ecmax">—</span>
+        <span class="stat-key">Max Ep (end)</span>
+        <span class="stat-value" id="stat-pend-epmax">—</span>
+        <span class="stat-key">Period T</span>
+        <span class="stat-value" id="stat-pend-T">—</span>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-pend-launch" class="primary">Start</button>
+        <button id="btn-pend-pause">Pause</button>
+        <button id="btn-pend-clear">Clear all</button>
+      </div>
+
+    </div><!-- #ctrl-pend -->
+
+    <!-- ════ SPRING CONTROLS ════ -->
+    <div id="ctrl-spring" hidden>
+
+      <div class="control-row">
+        <span class="control-label">Constant k</span>
+        <input type="number" id="inp-spring-k" value="10" step="0.5" min="0.1">
+        <span class="stat-key">N/m</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Displacement x₀</span>
+        <input type="number" id="inp-spring-x0" value="0.3" step="0.05" min="0.01">
+        <span class="stat-key">m</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Mass m</span>
+        <input type="number" id="inp-spring-m" value="1" step="0.1" min="0.01">
+        <span class="stat-key">kg</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Friction coeff. μ</span>
+        <input type="number" id="inp-spring-mu" value="0" step="0.01" min="0">
+        <span class="stat-key"></span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Gravity g</span>
+        <input type="number" id="inp-spring-g" value="9.81" step="0.01" min="0.01">
+        <span class="stat-key">m/s²</span>
+      </div>
+
+      <div class="stats">
+        <span class="stat-key">Initial Em₀</span>
+        <span class="stat-value" id="stat-spring-em0">—</span>
+        <span class="stat-key">Max Ek (at x=0)</span>
+        <span class="stat-value" id="stat-spring-ecmax">—</span>
+        <span class="stat-key">Period T₀</span>
+        <span class="stat-value" id="stat-spring-T">—</span>
+        <span class="stat-key">State</span>
+        <span class="stat-value" id="stat-spring-state">—</span>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-spring-launch" class="primary">Start</button>
+        <button id="btn-spring-pause">Pause</button>
+        <button id="btn-spring-clear">Clear all</button>
+      </div>
+
+    </div><!-- #ctrl-spring -->
+
+    <!-- ── Shared legend ── -->
+    <ul id="legend-list" class="legend-list"></ul>
+    <p class="hint">Dashed line = current params &nbsp;·&nbsp; In the energy graph, the two dots show Ek and Ep &nbsp;·&nbsp; Enter = launch</p>
+
+  </div><!-- .controls -->
+
+</div><!-- .main-layout -->
+
+<!-- ════ EQUATIONS — PROJECTILE ════ -->
+<section class="equations" id="eq-proj">
+  <h2>Energy equations — Projectile motion (no friction)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Kinetic energy</div>
+      <div class="eq" data-tex="E_c(t) = \tfrac{1}{2}mv^2 = \tfrac{1}{2}m\!\left[(v_0\cos\alpha)^2 + (v_0\sin\alpha - gt)^2\right]"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Gravitational potential energy</div>
+      <div class="eq" data-tex="E_p(t) = mgy(t) = mg\!\left(h_0 + v_0\sin\alpha\;t - \tfrac{1}{2}g\,t^2\right)"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Conservation (no friction)</div>
+      <div class="eq" data-tex="E_m = E_c(t) + E_p(t) = \tfrac{1}{2}mv_0^2 + mgh_0 = \text{cte.}"></div>
+      <div class="eq-note">Em is constant because there is no friction.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">At the apex</div>
+      <div class="eq" data-tex="E_{c,\min} = \tfrac{1}{2}m(v_0\cos\alpha)^2"></div>
+      <div class="eq" data-tex="E_{p,\max} = mg\!\left(h_0+\dfrac{(v_0\sin\alpha)^2}{2g}\right)"></div>
+      <div class="eq-note">At the apex v<sub>y</sub> = 0.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════ EQUATIONS — INCLINED PLANE ════ -->
+<section class="equations" id="eq-incl" hidden>
+  <h2>Energy equations — Inclined plane (starting from rest)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Kinetic energy</div>
+      <div class="eq" data-tex="E_c(t) = \tfrac{1}{2}mv^2 = \tfrac{1}{2}m(at)^2"></div>
+      <div class="eq" data-tex="a = g(\sin\theta - \mu\cos\theta)"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Gravitational potential energy</div>
+      <div class="eq" data-tex="E_p(t) = mgs(t)\sin\theta"></div>
+      <div class="eq" data-tex="s(t) = s_0 - \tfrac{1}{2}at^2"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">With friction (μ &gt; 0)</div>
+      <div class="eq" data-tex="E_m(t) = E_c + E_p = E_{m,0} - Q(t)"></div>
+      <div class="eq" data-tex="Q(t) = \mu\,mg\cos\theta\cdot\Delta s"></div>
+      <div class="eq-note">Q is the heat generated by friction. Em is not conserved.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Without friction (μ = 0)</div>
+      <div class="eq" data-tex="E_c(t) + E_p(t) = E_{m,0} = mgs_0\sin\theta"></div>
+      <div class="eq-note">Em is conserved: the Ek gained equals the Ep lost.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════ EQUATIONS — PENDULUM ════ -->
+<section class="equations" id="eq-pend" hidden>
+  <h2>Energy equations — Simple pendulum (no friction)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Equation of motion</div>
+      <div class="eq" data-tex="\ddot{\theta} = -\dfrac{g}{L}\sin\theta"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Kinetic energy</div>
+      <div class="eq" data-tex="E_c = \tfrac{1}{2}m(L\dot{\theta})^2"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Gravitational potential energy</div>
+      <div class="eq" data-tex="E_p = mgL(1 - \cos\theta)"></div>
+      <div class="eq-note">Reference: E_p = 0 at equilibrium (θ = 0).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Energy conservation</div>
+      <div class="eq" data-tex="E_m = E_c + E_p = mgL(1-\cos\theta_0) = \text{cte.}"></div>
+      <div class="eq" data-tex="T \approx 2\pi\sqrt{\dfrac{L}{g}}"></div>
+      <div class="eq-note">Exact period only for small θ₀. The simulation uses RK4 integration.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════ EQUATIONS — SPRING ════ -->
+<section class="equations" id="eq-spring" hidden>
+  <h2>Energy equations — Horizontal spring (Hooke's law)</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Kinetic energy</div>
+      <div class="eq" data-tex="E_c = \tfrac{1}{2}mv^2"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">Elastic potential energy</div>
+      <div class="eq" data-tex="E_p = \tfrac{1}{2}kx^2"></div>
+      <div class="eq-note">Reference: E_p = 0 at equilibrium (x = 0).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Without friction (μ = 0)</div>
+      <div class="eq" data-tex="E_m = E_c + E_p = \tfrac{1}{2}kx_0^2 = \text{cte.}"></div>
+      <div class="eq" data-tex="T_0 = 2\pi\sqrt{\dfrac{m}{k}}"></div>
+    </div>
+
+    <div>
+      <div class="eq-title">With friction (μ &gt; 0)</div>
+      <div class="eq" data-tex="E_m(t) = E_{m,0} - \mu mg\,|\Delta x|"></div>
+      <div class="eq-note">Energy decreases each half cycle. The system stops when |kx| ≤ μmg.</div>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+  document.querySelectorAll('.eq[data-tex]').forEach(el => {
+    katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+  });
+</script>
+
+<script src="physics.js"></script>
+<script src="scene.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>

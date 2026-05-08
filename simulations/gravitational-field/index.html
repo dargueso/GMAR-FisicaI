@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gravitational Field — Uniform Sphere</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    :root {
+      --clr-bg:           #f8f9fa;
+      --clr-surface:      #ffffff;
+      --clr-text:         #1f2937;
+      --clr-text-muted:   #6b7280;
+      --clr-accent:       #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border:       #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg:           #2e3440;
+        --clr-surface:      #3b4252;
+        --clr-text:         #eceff4;
+        --clr-text-muted:   #d0d8e4;
+        --clr-accent:       #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border:       #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .graphs-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0;          /* zero gap so x-axes are visually adjacent */
+      width: 100%;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+    }
+    .canvas-container.cc-top    { border-radius: 8px 8px 0 0; }
+    .canvas-container.cc-middle { border-top: none; }
+    .canvas-container.cc-bottom { border-top: none; border-radius: 0 0 8px 8px; }
+
+    #cc-sphere { aspect-ratio: 16 / 5; }
+    #cc-g      { aspect-ratio: 16 / 7; }
+    #cc-v      { aspect-ratio: 16 / 7; }
+    .canvas-container canvas { width: 100%; height: 100%; display: block; }
+
+    /* ── Controls panel ──────────────────────────────────────────────────────── */
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      color: var(--clr-text-muted);
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    select {
+      flex: 1;
+      min-width: 0;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--clr-accent); }
+
+    /* ── Stats grid ──────────────────────────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 12px 14px;
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .stat-key   { color: var(--clr-text-muted); }
+    .stat-value { color: var(--clr-text); font-variant-numeric: tabular-nums; text-align: right; }
+
+    .hint { font-size: 0.75rem; color: var(--clr-text-muted); text-align: center; }
+
+    /* ── Equations section ───────────────────────────────────────────────────── */
+    .equations {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .equations h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; }
+    .eq-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+    @media (min-width: 580px) { .eq-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) {
+      .equations { max-width: 1080px; }
+      .eq-grid   { grid-template-columns: repeat(4, 1fr); }
+    }
+    .eq-title {
+      font-size: 0.72rem; color: var(--clr-text-muted); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .eq      { font-size: 1rem; line-height: 2.4; color: var(--clr-text); }
+    .eq-note { font-size: 0.72rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    /* ── Desktop layout ──────────────────────────────────────────────────────── */
+    @media (min-width: 1100px) {
+      body { padding: 24px 40px; }
+      .main-layout {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1080px;
+        gap: 28px;
+      }
+      .graphs-col { flex: 1 1 0; max-width: none; min-width: 420px; }
+      .controls   { flex: 0 0 310px; max-width: 310px; padding: 18px; }
+      .control-label { width: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Gravitational Field — Uniform Sphere</h1>
+  <p>Distribution of g(r) and the potential V(r) inside and outside a uniform-density sphere.</p>
+</header>
+
+<div class="main-layout">
+
+  <!-- ── Graphs ── -->
+  <div class="graphs-col">
+
+    <div class="canvas-container cc-top" id="cc-sphere">
+      <canvas id="canvas-sphere"></canvas>
+    </div>
+
+    <div class="canvas-container cc-middle" id="cc-g">
+      <canvas id="canvas-g"></canvas>
+    </div>
+
+    <div class="canvas-container cc-bottom" id="cc-v">
+      <canvas id="canvas-v"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ── Controls ── -->
+  <div class="controls">
+
+    <div class="control-row">
+      <span class="control-label">Celestial body</span>
+      <select id="sel-planet"></select>
+    </div>
+
+    <div class="stats">
+      <span class="stat-key">Mass M</span>
+      <span class="stat-value" id="stat-mass">—</span>
+      <span class="stat-key">Radius R</span>
+      <span class="stat-value" id="stat-radius">—</span>
+      <span class="stat-key">g at surface</span>
+      <span class="stat-value" id="stat-g-surf">—</span>
+      <span class="stat-key">V at surface</span>
+      <span class="stat-value" id="stat-v-surf">—</span>
+      <span class="stat-key">V at center</span>
+      <span class="stat-value" id="stat-v-cent">—</span>
+    </div>
+
+    <p class="hint">Move the cursor over the graphs to see values at each point.</p>
+
+  </div>
+
+</div><!-- .main-layout -->
+
+<!-- ── Equations ── -->
+<section class="equations">
+  <h2>Equations — Gravitational field and potential of a uniform sphere</h2>
+  <div class="eq-grid">
+
+    <div>
+      <div class="eq-title">Field inside (r &lt; R)</div>
+      <div class="eq" data-tex="\vec{g}(r) = -\dfrac{GM}{R^3}\,r\,\hat{r}"></div>
+      <div class="eq-note">Increases linearly from the center. The surrounding shell does not contribute (shell theorem).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Field outside (r &gt; R)</div>
+      <div class="eq" data-tex="\vec{g}(r) = -\dfrac{GM}{r^2}\,\hat{r}"></div>
+      <div class="eq-note">Identical to a point mass M. Continuous at r = R.</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Potential inside (r &lt; R)</div>
+      <div class="eq" data-tex="V(r) = -\dfrac{GM}{2R^3}\!\left(3R^2 - r^2\right)"></div>
+      <div class="eq-note">Spherical paraboloid. Minimum (most negative) at the center: V(0) = −3GM/(2R).</div>
+    </div>
+
+    <div>
+      <div class="eq-title">Potential outside (r &gt; R)</div>
+      <div class="eq" data-tex="V(r) = -\dfrac{GM}{r}"></div>
+      <div class="eq-note">Continuous at r = R: V(R) = −GM/R. Tends to 0 as r → ∞.</div>
+    </div>
+
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+  document.querySelectorAll('.eq[data-tex]').forEach(el => {
+    katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+  });
+</script>
+
+<script src="physics.js"></script>
+<script src="scene.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>
