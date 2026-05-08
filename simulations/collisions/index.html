@@ -184,6 +184,8 @@ button.active { background: var(--clr-accent); color: #fff; border-color: var(--
 .clog-table td { padding: 2px 4px; text-align: right; }
 .clog-table td:first-child { text-align: left; color: var(--clr-text-muted); }
 .clog-table tr.clog-sep td { border-top: 1px solid var(--clr-border); font-weight: 600; }
+.clog-divider { border-top: 1px solid var(--clr-border); margin: 6px 0; }
+.clog-divider-strong { border-top: 2px solid var(--clr-accent); margin: 8px 0 6px; }
 
 /* Mode indicator on canvas */
 .mode-tag {
@@ -347,7 +349,7 @@ let newColor  = BALL_COLORS[0];
 let colorIdx  = 0;
 let tableFriction    = 0;
 let pauseOnCollision = false;
-let lastCollision    = null;
+let lastFrameLog     = null;   // { pairs, sysBefore, sysAfter }
 
 // Drag state
 let placing = null;
@@ -433,7 +435,9 @@ function step(dt) {
     if (b.y + BALL_R_PX > OY + TH)      { b.y = OY + TH - BALL_R_PX;      b.vy = -Math.abs(b.vy) * eWall; }
   }
 
-  // Ball-ball collisions (O(n²))
+  // Ball-ball collisions (O(n²)) — collect all pairs this frame
+  const sysBefore = sysSnapshot();
+  const framePairs = [];
   for (let i = 0; i < balls.length; i++) {
     for (let j = i + 1; j < balls.length; j++) {
       const a = balls[i], b = balls[j];
@@ -462,17 +466,19 @@ function step(dt) {
       a.vx -= J / a.m * nx; a.vy -= J / a.m * ny;
       b.vx += J / b.m * nx; b.vy += J / b.m * ny;
 
-      // Store collision snapshot
-      lastCollision = {
+      framePairs.push({
         aColor: a.color, bColor: b.color, aM: a.m, bM: b.m,
         pre:  { vxA: preVxA, vyA: preVyA, vxB: preVxB, vyB: preVyB },
         post: { vxA: a.vx,   vyA: a.vy,   vxB: b.vx,   vyB: b.vy  },
-      };
-      updateCollisionLog();
-      if (pauseOnCollision) {
-        running = false;
-        document.getElementById('btnPlay').textContent = 'Play';
-      }
+      });
+    }
+  }
+  if (framePairs.length > 0) {
+    lastFrameLog = { pairs: framePairs, sysBefore, sysAfter: sysSnapshot() };
+    updateCollisionLog();
+    if (pauseOnCollision) {
+      running = false;
+      document.getElementById('btnPlay').textContent = 'Play';
     }
   }
 
@@ -487,75 +493,69 @@ function step(dt) {
 }
 
 // ── Collision log ─────────────────────────────────────────────────────────────
-function updateCollisionLog() {
-  const lc = lastCollision;
-  if (!lc) return;
-  const s = SCALE;
-
-  function vals(m, vx, vy) {
-    return { px: m * vx * s, py: m * vy * s, ek: 0.5 * m * (vx*vx + vy*vy) * s*s };
+function sysSnapshot() {
+  let px = 0, py = 0, ek = 0;
+  for (const b of balls) {
+    px += b.m * b.vx;
+    py += b.m * b.vy;
+    ek += 0.5 * b.m * (b.vx * b.vx + b.vy * b.vy);
   }
-  const pA = vals(lc.aM, lc.pre.vxA,  lc.pre.vyA);
-  const pB = vals(lc.bM, lc.pre.vxB,  lc.pre.vyB);
-  const qA = vals(lc.aM, lc.post.vxA, lc.post.vyA);
-  const qB = vals(lc.bM, lc.post.vxB, lc.post.vyB);
+  return { px: px * SCALE, py: py * SCALE, ek: ek * SCALE * SCALE };
+}
 
+function updateCollisionLog() {
+  if (!lastFrameLog) return;
+  const { pairs, sysBefore, sysAfter } = lastFrameLog;
   const f = v => v.toFixed(3);
 
-  document.getElementById('collLog').innerHTML = `
-    <div class="clog-balls">
-      <span class="clog-dot" style="background:${lc.aColor}"></span>
-      <b>A</b> (${lc.aM} kg) &nbsp;vs&nbsp;
-      <span class="clog-dot" style="background:${lc.bColor}"></span>
-      <b>B</b> (${lc.bM} kg)
-    </div>
+  function bv(m, vx, vy) {
+    return { px: m * vx * SCALE, py: m * vy * SCALE, ek: 0.5 * m * (vx*vx + vy*vy) * SCALE * SCALE };
+  }
+
+  // One mini-table per colliding pair
+  let html = '';
+  pairs.forEach((lc, idx) => {
+    const pA = bv(lc.aM, lc.pre.vxA,  lc.pre.vyA);
+    const pB = bv(lc.bM, lc.pre.vxB,  lc.pre.vyB);
+    const qA = bv(lc.aM, lc.post.vxA, lc.post.vyA);
+    const qB = bv(lc.bM, lc.post.vxB, lc.post.vyB);
+
+    if (idx > 0) html += `<div class="clog-divider"></div>`;
+    html += `
+      <div class="clog-balls">
+        <span class="clog-dot" style="background:${lc.aColor}"></span>
+        <b style="color:${lc.aColor}">${lc.aM} kg</b>
+        &thinsp;vs&thinsp;
+        <span class="clog-dot" style="background:${lc.bColor}"></span>
+        <b style="color:${lc.bColor}">${lc.bM} kg</b>
+      </div>
+      <table class="clog-table">
+        <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
+        <tbody>
+          <tr><td><span style="color:${lc.aColor}">●</span> p_x</td><td>${f(pA.px)}</td><td>${f(qA.px)}</td></tr>
+          <tr><td><span style="color:${lc.aColor}">●</span> p_y</td><td>${f(pA.py)}</td><td>${f(qA.py)}</td></tr>
+          <tr><td><span style="color:${lc.aColor}">●</span> E_k</td><td>${f(pA.ek)}</td><td>${f(qA.ek)}</td></tr>
+          <tr><td><span style="color:${lc.bColor}">●</span> p_x</td><td>${f(pB.px)}</td><td>${f(qB.px)}</td></tr>
+          <tr><td><span style="color:${lc.bColor}">●</span> p_y</td><td>${f(pB.py)}</td><td>${f(qB.py)}</td></tr>
+          <tr><td><span style="color:${lc.bColor}">●</span> E_k</td><td>${f(pB.ek)}</td><td>${f(qB.ek)}</td></tr>
+        </tbody>
+      </table>`;
+  });
+
+  // System totals (always shown; uses pre/post snapshots of full system)
+  html += `
+    <div class="clog-divider clog-divider-strong"></div>
+    <div class="clog-balls" style="font-weight:600">System (${pairs.length} collision${pairs.length > 1 ? 's' : ''})</div>
     <table class="clog-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Before</th>
-          <th>After</th>
-        </tr>
-      </thead>
+      <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
       <tbody>
-        <tr>
-          <td><span style="color:${lc.aColor}">A</span> p_x</td>
-          <td>${f(pA.px)}</td><td>${f(qA.px)}</td>
-        </tr>
-        <tr>
-          <td><span style="color:${lc.aColor}">A</span> p_y</td>
-          <td>${f(pA.py)}</td><td>${f(qA.py)}</td>
-        </tr>
-        <tr>
-          <td><span style="color:${lc.aColor}">A</span> E_k</td>
-          <td>${f(pA.ek)}</td><td>${f(qA.ek)}</td>
-        </tr>
-        <tr>
-          <td><span style="color:${lc.bColor}">B</span> p_x</td>
-          <td>${f(pB.px)}</td><td>${f(qB.px)}</td>
-        </tr>
-        <tr>
-          <td><span style="color:${lc.bColor}">B</span> p_y</td>
-          <td>${f(pB.py)}</td><td>${f(qB.py)}</td>
-        </tr>
-        <tr>
-          <td><span style="color:${lc.bColor}">B</span> E_k</td>
-          <td>${f(pB.ek)}</td><td>${f(qB.ek)}</td>
-        </tr>
-        <tr class="clog-sep">
-          <td>Σ p_x</td>
-          <td>${f(pA.px + pB.px)}</td><td>${f(qA.px + qB.px)}</td>
-        </tr>
-        <tr>
-          <td>Σ p_y</td>
-          <td>${f(pA.py + pB.py)}</td><td>${f(qA.py + qB.py)}</td>
-        </tr>
-        <tr>
-          <td>Σ E_k</td>
-          <td>${f(pA.ek + pB.ek)}</td><td>${f(qA.ek + qB.ek)}</td>
-        </tr>
+        <tr class="clog-sep"><td>Σ p_x</td><td>${f(sysBefore.px)}</td><td>${f(sysAfter.px)}</td></tr>
+        <tr>                  <td>Σ p_y</td><td>${f(sysBefore.py)}</td><td>${f(sysAfter.py)}</td></tr>
+        <tr>                  <td>Σ E_k</td><td>${f(sysBefore.ek)}</td><td>${f(sysAfter.ek)}</td></tr>
       </tbody>
     </table>`;
+
+  document.getElementById('collLog').innerHTML = html;
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────────
