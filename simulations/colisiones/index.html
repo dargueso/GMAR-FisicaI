@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colisiones — Conservación del Momento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --clr-bg:           #f8f9fa;
+  --clr-surface:      #ffffff;
+  --clr-text:         #1f2937;
+  --clr-text-muted:   #6b7280;
+  --clr-accent:       #2d7d9a;
+  --clr-accent-light: #d4eef4;
+  --clr-border:       #e2e8f0;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --clr-bg:           #2e3440;
+    --clr-surface:      #3b4252;
+    --clr-text:         #eceff4;
+    --clr-text-muted:   #d0d8e4;
+    --clr-accent:       #5fb3d4;
+    --clr-accent-light: #2a4558;
+    --clr-border:       #4c566a;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--clr-bg);
+  color: var(--clr-text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.back-link {
+  position: fixed; top: 16px; right: 16px; z-index: 100;
+  background: var(--clr-surface); border: 1px solid var(--clr-accent);
+  border-radius: 6px; padding: 7px 14px; color: var(--clr-text);
+  text-decoration: none; font-size: 0.85rem; font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.back-link:hover { background: var(--clr-accent); color: #fff; }
+
+header {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--clr-border);
+  flex-shrink: 0;
+}
+header h1 { font-size: 1.2rem; font-weight: 600; }
+header p  { font-size: 0.8rem; color: var(--clr-text-muted); margin-top: 2px; }
+
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Canvas area ── */
+.canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  min-width: 0;
+}
+
+canvas {
+  display: block;
+  cursor: crosshair;
+  border-radius: 4px;
+}
+
+/* ── Controls panel ── */
+.controls {
+  width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--clr-border);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--clr-surface);
+}
+
+.section-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+  margin-bottom: 6px;
+}
+
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+button {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--clr-border);
+  border-radius: 6px;
+  background: var(--clr-bg);
+  color: var(--clr-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+button:hover { background: var(--clr-accent-light); border-color: var(--clr-accent); }
+button.active { background: var(--clr-accent); color: #fff; border-color: var(--clr-accent); }
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.control-label { flex: 0 0 70px; color: var(--clr-text-muted); font-size: 0.75rem; }
+.control-row input[type=range] { flex: 1; accent-color: var(--clr-accent); }
+.control-value { flex: 0 0 42px; text-align: right; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+.hud-box {
+  background: var(--clr-bg);
+  border: 1px solid var(--clr-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  line-height: 1.8;
+}
+.hud-row { display: flex; justify-content: space-between; }
+.hud-label { color: var(--clr-text-muted); }
+.hud-val { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+.hint { font-size: 0.72rem; color: var(--clr-text-muted); line-height: 1.5; }
+
+.ball-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.ball-swatch {
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; border: 2px solid transparent;
+  transition: border-color 0.12s;
+}
+.ball-swatch.selected { border-color: var(--clr-text); }
+
+/* Mode indicator on canvas */
+.mode-tag {
+  position: absolute;
+  bottom: 28px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.canvas-wrap { position: relative; }
+.mode-tag.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<a class="back-link" href="/#teaching">← Back to website</a>
+
+<header>
+  <h1>Colisiones — Conservación del Momento Lineal</h1>
+  <p>Coloca bolas, elige masa y velocidad · Colisiones elásticas e inelásticas</p>
+</header>
+
+<div class="layout">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="sim"></canvas>
+    <div class="mode-tag" id="modeTag"></div>
+  </div>
+
+  <div class="controls" id="ctrl">
+
+    <div>
+      <div class="section-label">Simulación</div>
+      <div class="btn-row">
+        <button id="btnPlay">Pausa</button>
+        <button id="btnClear">Limpiar</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Colisión</div>
+      <div class="btn-row">
+        <button id="btnElastic" class="active">Elástica</button>
+        <button id="btnInelastic">Inelástica</button>
+      </div>
+      <div class="control-row" id="rowCOR" style="margin-top:8px; display:none">
+        <span class="control-label">Coef. rest.</span>
+        <input type="range" id="slCOR" min="0" max="0.99" step="0.01" value="0.5">
+        <span class="control-value" id="valCOR">0.50</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Nueva bola</div>
+      <div class="control-row">
+        <span class="control-label">Masa (kg)</span>
+        <input type="range" id="slMass" min="0.5" max="5" step="0.5" value="1">
+        <span class="control-value" id="valMass">1.0 kg</span>
+      </div>
+      <div style="margin-top:6px">
+        <div class="section-label" style="margin-bottom:4px">Color</div>
+        <div class="ball-palette" id="palette"></div>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button id="btnAdd" class="active">+ Añadir bola</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Haz clic en la mesa para colocar · arrastra para dar velocidad inicial.</p>
+    </div>
+
+    <div>
+      <div class="section-label">Conservación</div>
+      <div class="hud-box">
+        <div class="hud-row"><span class="hud-label">Bolas activas</span><span class="hud-val" id="hudN">0</span></div>
+        <div class="hud-row"><span class="hud-label">p_x (kg·m/s)</span><span class="hud-val" id="hudPx">0.00</span></div>
+        <div class="hud-row"><span class="hud-label">p_y (kg·m/s)</span><span class="hud-val" id="hudPy">0.00</span></div>
+        <div class="hud-row"><span class="hud-label">|p| (kg·m/s)</span><span class="hud-val" id="hudP">0.00</span></div>
+        <div class="hud-row"><span class="hud-label">E_k (J)</span><span class="hud-val" id="hudEk">0.00</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Instrucciones</div>
+      <p class="hint">
+        Modo <b>elástica</b>: energía cinética conservada (e = 1).<br>
+        Modo <b>inelástica</b>: energía se pierde según el coeficiente de restitución e.<br>
+        Las bolas que caigan en el agujero se eliminan.<br>
+        El momento total se muestra en tiempo real.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const BALL_COLORS = ['#e63946','#f4a261','#2a9d8f','#457b9d','#9b5de5','#f72585','#4cc9f0','#06d6a0'];
+const BALL_R_PX   = 18;        // visual radius in canvas pixels
+const VEL_SCALE   = 4.0;       // (px/s) per drag-pixel — 100px drag → 400 px/s
+const POCKET_R    = 22;        // pocket radius in canvas pixels
+const RAIL_W      = 28;        // rail (border) thickness in px
+const SCALE       = 0.01;      // metres per pixel  (1 px = 1 cm)
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let balls     = [];
+let running   = true;
+let addMode   = true;
+let elastic   = true;
+let COR       = 0.5;           // coefficient of restitution (inelastic)
+let newMass   = 1.0;
+let newColor  = BALL_COLORS[0];
+let colorIdx  = 0;
+
+// Drag-to-set-velocity state
+let placing   = null;          // { x, y } canvas coords while dragging
+let dragEnd   = null;
+
+// ── Canvas setup ───────────────────────────────────────────────────────────────
+const canvas  = document.getElementById('sim');
+const ctx     = canvas.getContext('2d');
+const wrap    = document.getElementById('canvasWrap');
+const modeTag = document.getElementById('modeTag');
+
+let TW = 0, TH = 0;           // table interior dimensions (px)
+let OX = 0, OY = 0;           // table interior origin (px) in canvas coords
+let pockets = [];              // [{x,y}] canvas coords
+
+function resize() {
+  const W = wrap.clientWidth  - 40;
+  const H = wrap.clientHeight - 40;
+  // Keep 2:1 aspect like a pool table, but fit in available space
+  const aspect = 2.0;
+  let cw, ch;
+  if (W / H > aspect) { ch = H; cw = ch * aspect; }
+  else                { cw = W; ch = cw / aspect; }
+  canvas.width  = cw;
+  canvas.height = ch;
+
+  TW = cw - 2 * RAIL_W;
+  TH = ch - 2 * RAIL_W;
+  OX = RAIL_W;
+  OY = RAIL_W;
+
+  // Clamp existing balls inside new boundaries
+  for (const b of balls) {
+    b.x = Math.max(OX + BALL_R_PX, Math.min(OX + TW - BALL_R_PX, b.x));
+    b.y = Math.max(OY + BALL_R_PX, Math.min(OY + TH - BALL_R_PX, b.y));
+  }
+
+  buildPockets();
+}
+
+function buildPockets() {
+  const cx = OX + TW / 2, cy = OY + TH / 2;
+  pockets = [
+    { x: OX,      y: OY      },   // top-left
+    { x: cx,      y: OY      },   // top-mid
+    { x: OX + TW, y: OY      },   // top-right
+    { x: OX,      y: OY + TH },   // bot-left
+    { x: cx,      y: OY + TH },   // bot-mid
+    { x: OX + TW, y: OY + TH },   // bot-right
+  ];
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+// ── Physics ────────────────────────────────────────────────────────────────────
+function step(dt) {
+  // Move
+  for (const b of balls) {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+  }
+
+  // Wall collisions
+  for (const b of balls) {
+    const e = elastic ? 1 : COR;
+    if (b.x - BALL_R_PX < OX)           { b.x = OX + BALL_R_PX;           b.vx =  Math.abs(b.vx) * e; }
+    if (b.x + BALL_R_PX > OX + TW)      { b.x = OX + TW - BALL_R_PX;      b.vx = -Math.abs(b.vx) * e; }
+    if (b.y - BALL_R_PX < OY)           { b.y = OY + BALL_R_PX;           b.vy =  Math.abs(b.vy) * e; }
+    if (b.y + BALL_R_PX > OY + TH)      { b.y = OY + TH - BALL_R_PX;      b.vy = -Math.abs(b.vy) * e; }
+  }
+
+  // Ball-ball collisions (O(n²))
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      const a = balls[i], b = balls[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const minD = 2 * BALL_R_PX;
+      if (dist < minD && dist > 0.001) {
+        // Separate overlapping balls
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = (minD - dist) / 2;
+        a.x -= nx * overlap; a.y -= ny * overlap;
+        b.x += nx * overlap; b.y += ny * overlap;
+
+        // Relative velocity along normal
+        const dvx = a.vx - b.vx, dvy = a.vy - b.vy;
+        const dvn = dvx * nx + dvy * ny;
+        if (dvn <= 0) continue;  // already separating
+
+        const e  = elastic ? 1 : COR;
+        const J  = (1 + e) * dvn / (1/a.m + 1/b.m);
+        a.vx -= J / a.m * nx; a.vy -= J / a.m * ny;
+        b.vx += J / b.m * nx; b.vy += J / b.m * ny;
+      }
+    }
+  }
+
+  // Pocket check — remove balls that fall in
+  balls = balls.filter(b => {
+    for (const p of pockets) {
+      const dx = b.x - p.x, dy = b.y - p.y;
+      if (dx*dx + dy*dy < POCKET_R * POCKET_R) return false;
+    }
+    return true;
+  });
+}
+
+// ── Drawing ────────────────────────────────────────────────────────────────────
+function drawTable() {
+  const cw = canvas.width, ch = canvas.height;
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // Rail background
+  ctx.fillStyle = isDark ? '#2a2018' : '#5c3d20';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Table surface
+  ctx.fillStyle = isDark ? '#1e1e1e' : '#f5f0e8';
+  ctx.fillRect(OX, OY, TW, TH);
+
+  // Subtle grid lines (very faint)
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  ctx.lineWidth = 1;
+  const step = 60;
+  for (let x = OX + step; x < OX + TW; x += step) {
+    ctx.beginPath(); ctx.moveTo(x, OY); ctx.lineTo(x, OY + TH); ctx.stroke();
+  }
+  for (let y = OY + step; y < OY + TH; y += step) {
+    ctx.beginPath(); ctx.moveTo(OX, y); ctx.lineTo(OX + TW, y); ctx.stroke();
+  }
+
+  // Cushion inner edge highlight
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(OX + 1, OY + 1, TW - 2, TH - 2);
+
+  // Pockets
+  for (const p of pockets) {
+    // Outer shadow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, POCKET_R + 3, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? '#111' : '#3a2408';
+    ctx.fill();
+    // Pocket hole
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fill();
+    // Inner shine
+    ctx.beginPath();
+    ctx.arc(p.x - POCKET_R * 0.25, p.y - POCKET_R * 0.25, POCKET_R * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fill();
+  }
+}
+
+function drawBall(b) {
+  const x = b.x, y = b.y, r = BALL_R_PX;
+
+  // Shadow
+  ctx.beginPath();
+  ctx.arc(x + 2, y + 3, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fill();
+
+  // Ball body
+  const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.05, x, y, r);
+  grad.addColorStop(0, lighten(b.color, 0.45));
+  grad.addColorStop(0.6, b.color);
+  grad.addColorStop(1, darken(b.color, 0.35));
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Highlight
+  ctx.beginPath();
+  ctx.arc(x - r*0.32, y - r*0.32, r*0.28, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fill();
+
+  // Mass label
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${r * 0.75}px DM Sans, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(b.m % 1 === 0 ? b.m : b.m.toFixed(1), x, y + 1);
+}
+
+function drawVelocityArrow(b) {
+  const spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+  if (spd < 1) return;
+  const len = Math.min(spd * 0.18, 80);
+  const ux = b.vx / spd, uy = b.vy / spd;
+  const ex = b.x + ux * (BALL_R_PX + len);
+  const ey = b.y + uy * (BALL_R_PX + len);
+
+  ctx.strokeStyle = b.color;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(b.x + ux * BALL_R_PX, b.y + uy * BALL_R_PX);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  // Arrowhead
+  const ah = 8, aw = 4;
+  const px = -uy, py = ux;
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - ux*ah + px*aw, ey - uy*ah + py*aw);
+  ctx.lineTo(ex - ux*ah - px*aw, ey - uy*ah - py*aw);
+  ctx.closePath();
+  ctx.fillStyle = b.color;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawPlacing() {
+  if (!placing) return;
+  const r = BALL_R_PX;
+  const x = placing.x, y = placing.y;
+
+  // Ghost ball
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = newColor;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Drag velocity arrow
+  if (dragEnd) {
+    const dx = dragEnd.x - x, dy = dragEnd.y - y;
+    const spd = Math.sqrt(dx*dx + dy*dy);
+    if (spd > 4) {
+      ctx.strokeStyle = newColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(dragEnd.x, dragEnd.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead
+      const ux = dx/spd, uy = dy/spd;
+      const ah = 8, aw = 4;
+      const px = -uy, py = ux;
+      ctx.beginPath();
+      ctx.moveTo(dragEnd.x, dragEnd.y);
+      ctx.lineTo(dragEnd.x - ux*ah + px*aw, dragEnd.y - uy*ah + py*aw);
+      ctx.lineTo(dragEnd.x - ux*ah - px*aw, dragEnd.y - uy*ah - py*aw);
+      ctx.closePath();
+      ctx.fillStyle = newColor;
+      ctx.fill();
+
+      // Speed label
+
+      ctx.fillStyle = newColor;
+      ctx.font = '11px DM Sans, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      const vSpd = (spd * VEL_SCALE * SCALE).toFixed(2);
+      ctx.fillText(`v = ${vSpd} m/s`, dragEnd.x + 8, dragEnd.y - 4);
+    }
+  }
+}
+
+function drawMomentumArrow() {
+  if (balls.length === 0) return;
+  let px = 0, py = 0;
+  for (const b of balls) { px += b.m * b.vx; py += b.m * b.vy; }
+  const p = Math.sqrt(px*px + py*py);
+  if (p < 0.5) return;
+
+  const cx = OX + TW / 2, cy = OY + TH / 2;
+  const scale = 0.15;
+  const len = Math.min(p * scale, TH * 0.35);
+  const ux = px/p, uy = py/p;
+  const ex = cx + ux * len, ey = cy + uy * len;
+
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  // Arrowhead
+  const ah = 14, aw = 7;
+  const qx = -uy, qy = ux;
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - ux*ah + qx*aw, ey - uy*ah + qy*aw);
+  ctx.lineTo(ex - ux*ah - qx*aw, ey - uy*ah - qy*aw);
+  ctx.closePath();
+  ctx.fillStyle = '#888';
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function frame() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawTable();
+
+  if (running) step(1 / 60);
+
+  drawMomentumArrow();
+  for (const b of balls) { drawVelocityArrow(b); }
+  for (const b of balls) { drawBall(b); }
+  drawPlacing();
+
+  updateHUD();
+  requestAnimationFrame(frame);
+}
+
+// ── HUD ────────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  let px = 0, py = 0, ek = 0;
+  for (const b of balls) {
+    px += b.m * b.vx;
+    py += b.m * b.vy;
+    ek += 0.5 * b.m * (b.vx*b.vx + b.vy*b.vy);
+  }
+  document.getElementById('hudN').textContent  = balls.length;
+  document.getElementById('hudPx').textContent = (px * SCALE).toFixed(3);
+  document.getElementById('hudPy').textContent = (py * SCALE).toFixed(3);
+  document.getElementById('hudP').textContent  = (Math.sqrt(px*px + py*py) * SCALE).toFixed(3);
+  document.getElementById('hudEk').textContent = (ek * SCALE * SCALE).toFixed(4);
+}
+
+// ── Color helpers ──────────────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r, g, b];
+}
+function lighten(hex, amt) {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgb(${Math.min(255,r+255*amt)|0},${Math.min(255,g+255*amt)|0},${Math.min(255,b+255*amt)|0})`;
+}
+function darken(hex, amt) {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgb(${Math.max(0,r-255*amt)|0},${Math.max(0,g-255*amt)|0},${Math.max(0,b-255*amt)|0})`;
+}
+
+// ── Canvas interaction ─────────────────────────────────────────────────────────
+function canvasXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+}
+
+function inTable(pt) {
+  return pt.x >= OX + BALL_R_PX && pt.x <= OX + TW - BALL_R_PX &&
+         pt.y >= OY + BALL_R_PX && pt.y <= OY + TH - BALL_R_PX;
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (!addMode) return;
+  const pt = canvasXY(e);
+  if (!inTable(pt)) return;
+  placing = { x: pt.x, y: pt.y };
+  dragEnd = null;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!placing) return;
+  dragEnd = canvasXY(e);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!placing) return;
+  const pt = canvasXY(e);
+  let vx = 0, vy = 0;
+  if (dragEnd) {
+    const dx = dragEnd.x - placing.x, dy = dragEnd.y - placing.y;
+    vx = dx * VEL_SCALE;
+    vy = dy * VEL_SCALE;
+  }
+  balls.push({ x: placing.x, y: placing.y, vx, vy, m: newMass, color: newColor, id: Date.now() });
+  placing = null;
+  dragEnd = null;
+});
+
+canvas.addEventListener('mouseleave', () => { if (placing) { placing = null; dragEnd = null; } });
+
+// ── Controls ───────────────────────────────────────────────────────────────────
+const btnPlay     = document.getElementById('btnPlay');
+const btnClear    = document.getElementById('btnClear');
+const btnElastic  = document.getElementById('btnElastic');
+const btnInelastic= document.getElementById('btnInelastic');
+const btnAdd      = document.getElementById('btnAdd');
+const slCOR       = document.getElementById('slCOR');
+const valCOR      = document.getElementById('valCOR');
+const slMass      = document.getElementById('slMass');
+const valMass     = document.getElementById('valMass');
+const rowCOR      = document.getElementById('rowCOR');
+
+btnPlay.addEventListener('click', () => {
+  running = !running;
+  btnPlay.textContent = running ? 'Pausa' : 'Reanudar';
+});
+
+btnClear.addEventListener('click', () => { balls = []; placing = null; dragEnd = null; });
+
+btnElastic.addEventListener('click', () => {
+  elastic = true;
+  btnElastic.classList.add('active'); btnInelastic.classList.remove('active');
+  rowCOR.style.display = 'none';
+});
+
+btnInelastic.addEventListener('click', () => {
+  elastic = false;
+  btnInelastic.classList.add('active'); btnElastic.classList.remove('active');
+  rowCOR.style.display = 'flex';
+});
+
+slCOR.addEventListener('input', () => {
+  COR = parseFloat(slCOR.value);
+  valCOR.textContent = COR.toFixed(2);
+});
+
+slMass.addEventListener('input', () => {
+  newMass = parseFloat(slMass.value);
+  valMass.textContent = newMass.toFixed(1) + ' kg';
+});
+
+// Mode tag
+function setModeTag() {
+  if (addMode) {
+    modeTag.textContent = '+ Modo colocación — clic y arrastra para dar velocidad';
+    modeTag.classList.add('visible');
+  } else {
+    modeTag.classList.remove('visible');
+  }
+}
+
+btnAdd.addEventListener('click', () => {
+  addMode = !addMode;
+  btnAdd.classList.toggle('active', addMode);
+  btnAdd.textContent = addMode ? '✓ Colocando bola' : '+ Añadir bola';
+  setModeTag();
+  canvas.style.cursor = addMode ? 'crosshair' : 'default';
+});
+
+// ── Color palette ──────────────────────────────────────────────────────────────
+const palette = document.getElementById('palette');
+BALL_COLORS.forEach((c, i) => {
+  const sw = document.createElement('div');
+  sw.className = 'ball-swatch' + (i === 0 ? ' selected' : '');
+  sw.style.background = c;
+  sw.title = c;
+  sw.addEventListener('click', () => {
+    newColor = c;
+    colorIdx = i;
+    palette.querySelectorAll('.ball-swatch').forEach((s, j) => s.classList.toggle('selected', j === i));
+  });
+  palette.appendChild(sw);
+});
+
+// ── Start ──────────────────────────────────────────────────────────────────────
+setModeTag();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
