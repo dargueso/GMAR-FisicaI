@@ -41,7 +41,7 @@ function updateStats() {
   document.getElementById('stat-Wpar' ).textContent = p.W_par.toFixed(2)  + ' N';
   document.getElementById('stat-Wperp').textContent = p.W_perp.toFixed(2) + ' N';
   document.getElementById('stat-a'    ).textContent = p.a.toFixed(2)      + ' m/s²';
-  document.getElementById('stat-state').textContent = p.sliding ? 'Deslizando ↓' : 'En reposo';
+  document.getElementById('stat-state').textContent = p.sliding ? 'Sliding ↓' : 'At rest';
 }
 
 // ---- Simulation control ----
@@ -52,7 +52,7 @@ function startSim() {
   state.s_vel   = 0;
   state.running = true;
   state.paused  = false;
-  document.getElementById('btn-pause').textContent = 'Pausar';
+  document.getElementById('btn-pause').textContent = 'Pause';
   startAnimLoop();
   rerender();
 }
@@ -60,7 +60,7 @@ function startSim() {
 function togglePause() {
   if (!state.running) return;
   state.paused = !state.paused;
-  document.getElementById('btn-pause').textContent = state.paused ? 'Reanudar' : 'Pausar';
+  document.getElementById('btn-pause').textContent = state.paused ? 'Resume' : 'Pause';
   if (!state.paused) startAnimLoop();
   else render(g_canvas, state);
 }
@@ -71,7 +71,7 @@ function resetSim() {
   state.s_vel    = 0;
   state.running  = false;
   state.paused   = false;
-  document.getElementById('btn-pause').textContent = 'Pausar';
+  document.getElementById('btn-pause').textContent = 'Pause';
   rerender();
 }
 

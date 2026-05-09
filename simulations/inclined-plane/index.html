@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plano Inclinado — Simulador</title>
+  <title>Inclined Plane — Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -220,8 +220,8 @@
 <body>
 
 <header>
-  <h1>Simulador de Plano Inclinado</h1>
-  <p>Objeto cuadrado sin rodadura · rozamiento cinético/estático (mismo μ)</p>
+  <h1>Inclined Plane Simulator</h1>
+  <p>Square object, no rolling · kinetic/static friction (same μ)</p>
 </header>
 
 <div class="main-layout">
@@ -233,25 +233,25 @@
 <div class="controls">
 
   <div class="control-row">
-    <span class="control-label">Masa m</span>
+    <span class="control-label">Mass m</span>
     <input type="number" id="inp-m" value="2" step="0.1" min="0.01">
     <span class="stat-key">kg</span>
   </div>
 
   <div class="control-row">
-    <span class="control-label">Ángulo θ</span>
+    <span class="control-label">Angle θ</span>
     <input type="number" id="inp-angle" value="30" step="1" min="0" max="89">
     <span class="stat-key">°</span>
   </div>
 
   <div class="control-row">
-    <span class="control-label">Coef. rozamiento μ</span>
+    <span class="control-label">Friction coeff. μ</span>
     <input type="number" id="inp-mu" value="0.20" step="0.01" min="0">
     <span class="stat-key"></span>
   </div>
 
   <div class="control-row">
-    <span class="control-label">Gravedad g</span>
+    <span class="control-label">Gravity g</span>
     <input type="number" id="inp-g" value="9.81" step="0.01" min="0.01">
     <span class="stat-key">m/s²</span>
   </div>
@@ -264,7 +264,7 @@
     <span class="stat-key dot-N">● Normal N</span>
     <span class="stat-value" id="stat-N">—</span>
 
-    <span class="stat-key dot-f">● Rozamiento f</span>
+    <span class="stat-key dot-f">● Friction f</span>
     <span class="stat-value" id="stat-f">—</span>
 
     <span class="stat-key dot-Wpar">● W∥ = mg sinθ</span>
@@ -273,16 +273,16 @@
     <span class="stat-key dot-Wperp">● W⊥ = mg cosθ</span>
     <span class="stat-value" id="stat-Wperp">—</span>
 
-    <span class="stat-key dot-a">Aceleración a</span>
+    <span class="stat-key dot-a">Acceleration a</span>
     <span class="stat-value" id="stat-a">—</span>
 
-    <span class="stat-key">Estado</span>
+    <span class="stat-key">State</span>
     <span class="stat-value" id="stat-state">—</span>
   </div>
 
   <!-- Decomposition toggle -->
   <div class="control-row">
-    <span class="control-label">Descomponer W</span>
+    <span class="control-label">Decompose W</span>
     <div class="button-row" style="justify-content:flex-start">
       <button id="btn-decomp">W∥ / W⊥</button>
     </div>
@@ -290,19 +290,19 @@
 
   <!-- Action buttons -->
   <div class="button-row">
-    <button id="btn-start" class="primary">Iniciar</button>
-    <button id="btn-pause">Pausar</button>
-    <button id="btn-reset">Reiniciar</button>
+    <button id="btn-start" class="primary">Start</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-reset">Reset</button>
   </div>
 
-  <p class="hint">Enter en cualquier campo = Iniciar · Cambia los parámetros para ver el movimiento</p>
+  <p class="hint">Enter in any field = Start · Change parameters to see the motion</p>
 </div>
 
 </div><!-- .main-layout -->
 
 <!-- Equations -->
 <section class="equations">
-  <h2>Ecuaciones de movimiento (sin rodadura)</h2>
+  <h2>Equations of motion (no rolling)</h2>
   <div class="eq-grid">
 
     <div>
@@ -318,17 +318,17 @@
     </div>
 
     <div>
-      <div class="eq-title">Si desliza (tanθ &gt; μ)</div>
+      <div class="eq-title">If sliding (tanθ &gt; μ)</div>
       <div class="eq" data-tex="a = g\,(\sin\theta - \mu\cos\theta)"></div>
       <div class="eq" data-tex="a > 0"></div>
-      <div class="eq-note">f cinético = μN, opuesto al movimiento</div>
+      <div class="eq-note">Kinetic friction = μN, opposite to motion</div>
     </div>
 
     <div>
-      <div class="eq-title">Si en reposo (tanθ ≤ μ)</div>
+      <div class="eq-title">If at rest (tanθ ≤ μ)</div>
       <div class="eq" data-tex="f = mg\sin\theta \;\leq\; \mu\,mg\cos\theta"></div>
       <div class="eq" data-tex="a = 0"></div>
-      <div class="eq-note">Condición de deslizamiento: tan θ &gt; μ</div>
+      <div class="eq-note">Sliding condition: tan θ &gt; μ</div>
     </div>
 
   </div>
