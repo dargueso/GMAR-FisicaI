@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coriolis Effect — Merry-Go-Round</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --clr-bg: #f8f9fa;
+      --clr-surface: #ffffff;
+      --clr-text: #1f2937;
+      --clr-text-muted: #6b7280;
+      --clr-accent: #2d7d9a;
+      --clr-accent-light: #d4eef4;
+      --clr-border: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --clr-bg: #2e3440;
+        --clr-surface: #3b4252;
+        --clr-text: #eceff4;
+        --clr-text-muted: #d0d8e4;
+        --clr-accent: #5fb3d4;
+        --clr-accent-light: #2a4558;
+        --clr-border: #4c566a;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+    }
+
+    header { text-align: center; }
+    header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.03em; }
+    header p  { font-size: 0.85rem; color: var(--clr-text-muted); margin-top: 4px; }
+
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .canvases {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--clr-accent);
+    }
+
+    canvas {
+      background: var(--clr-bg);
+      display: block;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--clr-text-muted);
+      width: 130px;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--clr-accent);
+      cursor: pointer;
+    }
+
+    .control-value {
+      font-size: 0.8rem;
+      color: var(--clr-text);
+      width: 110px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: 1px solid var(--clr-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--clr-text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover  { background: var(--clr-accent-light); }
+    button.active { background: var(--clr-accent); color: #fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--clr-text-muted);
+      text-align: center;
+    }
+
+    @media (max-width: 760px) {
+      canvas { width: calc(50vw - 28px); height: calc(50vw - 28px); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Coriolis Effect — The Merry-Go-Round</h1>
+  <p>Ana throws a ball to Ben across a spinning platform — watch it from the ground, and from the platform</p>
+</header>
+
+<div class="main-layout">
+
+<div class="canvases">
+  <div class="panel">
+    <span class="panel-label">Platform view</span>
+    <canvas id="canvas-rotating" width="320" height="320"></canvas>
+  </div>
+  <div class="panel">
+    <span class="panel-label">Ground view</span>
+    <canvas id="canvas-ground" width="320" height="320"></canvas>
+  </div>
+</div>
+
+<div class="controls">
+
+  <div class="control-row">
+    <span class="control-label">Throw</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-mode-center" class="active">Centre → Edge</button>
+      <button id="btn-mode-edge">Edge → Edge</button>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Aim</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-aim-naive" class="active">Straight at Ben</button>
+      <button id="btn-aim-lead">Lead the throw</button>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Ball speed is</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-vel-absolute" class="active">Absolute (ground)</button>
+      <button id="btn-vel-relative">Relative to Ana</button>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Rotation rate</span>
+    <input type="range" id="slider-omega" min="-2" max="2" step="0.05" value="0.5">
+    <span class="control-value" id="val-omega">0.50 rad/s (CCW)</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Ball speed</span>
+    <input type="range" id="slider-speed" min="1" max="15" step="0.5" value="5">
+    <span class="control-value" id="val-speed">5.0 m/s</span>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Playback</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-playback-025">0.25×</button>
+      <button id="btn-playback-05">0.5×</button>
+      <button id="btn-playback-1" class="active">1×</button>
+    </div>
+  </div>
+
+  <div class="control-row">
+    <span class="control-label">Ground view</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-disc-trail">Show disc-fixed path</button>
+    </div>
+  </div>
+
+  <div class="button-row">
+    <button id="btn-play">Play</button>
+    <button id="btn-pause">Pause</button>
+    <button id="btn-step">Step ▸</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+
+  <p class="hint">"Centre → Edge" and "Edge → Edge" match the Session guide's merry-go-round example (R = 4 m). "Lead the throw" is an exact hit from the centre; from the edge it only gets close. "Relative to Ana" adds her own platform speed to the throw — only matters when she's on the rim. "Show disc-fixed path" draws the curved path onto the ground view, spinning with the platform — like a line scratched onto the spinning disc.</p>
+</div>
+
+</div>
+
+<script src="physics.js"></script>
+<script src="renderer.js"></script>
+<script src="main.js"></script>
+<script src="controls.js"></script>
+</body>
+</html>
