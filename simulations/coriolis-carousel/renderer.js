@@ -136,13 +136,13 @@ function drawAimLine(ctx, x0, y0, x1, y1) {
   ctx.restore();
 }
 
-function drawTrail(ctx, trail, color, { dotted = false } = {}) {
+function drawTrail(ctx, trail, color, { dash = null } = {}) {
   if (trail.length < 2) return;
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.lineWidth = dotted ? 2 : 1.8;
+  ctx.lineWidth = dash ? 2 : 1.8;
   ctx.lineJoin = 'round';
-  if (dotted) ctx.setLineDash([2, 5]);
+  if (dash) ctx.setLineDash(dash);
   ctx.beginPath();
   ctx.moveTo(trail[0].px, trail[0].py);
   for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].px, trail[i].py);

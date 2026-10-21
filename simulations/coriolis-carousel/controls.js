@@ -94,4 +94,21 @@ window.addEventListener('load', () => {
   document.getElementById('btn-step').addEventListener('click', stepSim);
   document.getElementById('btn-reset').addEventListener('click', () => { pauseSim(); resetSim(); });
 
+  // ── Keyboard shortcuts: ←/→ step back/forward one frame, Space play/pause ──
+  window.addEventListener('keydown', (e) => {
+    // Let a focused slider keep its native arrow-key behaviour.
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+    if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      stepSim();
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      stepBack();
+    } else if (e.code === 'Space') {
+      e.preventDefault();
+      simState.running ? pauseSim() : startSim();
+    }
+  });
+
 });

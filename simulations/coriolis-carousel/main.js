@@ -87,14 +87,23 @@ function animate(timestamp) {
   state.rafId = requestAnimationFrame(animate);
 }
 
-function pushTrailPoint() {
-  const theta = state.omega * state.t;
-  const ballG = add(state.anaPos, scale(state.launch.vel, state.t));
+function pushTrailPoint(t = state.t) {
+  const theta = state.omega * t;
+  const ballG = add(state.anaPos, scale(state.launch.vel, t));
   const ballR = rotatingOfGround(ballG, theta);
   const cG = metersToCanvas(ballG.x, ballG.y, DISC_CX, DISC_CY, SCALE);
   const cR = metersToCanvas(ballR.x, ballR.y, DISC_CX, DISC_CY, SCALE);
   state.trailGround.push({ px: cG.px, py: cG.py });
   state.trailRot.push({ px: cR.px, py: cR.py });
+}
+
+/** Rebuild the trails from scratch up to time t (used when stepping backward). */
+function rebuildTrailTo(t) {
+  state.trailGround = [];
+  state.trailRot = [];
+  if (t <= 0) return;
+  const n = Math.max(1, Math.round(t / STEP_DT));
+  for (let i = 1; i <= n; i++) pushTrailPoint(Math.min(t, i * STEP_DT));
 }
 
 function renderPanel(ctx, { rotateDisc, trail, color }) {
@@ -110,7 +119,7 @@ function renderPanel(ctx, { rotateDisc, trail, color }) {
     // trailRot points are stored in the disc's own body frame, so drawing
     // them under this same rotation makes the path spin with the disc —
     // exactly like a line scratched onto the platform's surface.
-    if (state.showDiscTrail) drawTrail(ctx, state.trailRot, '#f5d400', { dotted: true });
+    if (state.showDiscTrail) drawTrail(ctx, state.trailRot, '#f5d400', { dash: [2, 5] });
     ctx.restore();
   } else {
     drawDisc(ctx, DISC_CX, DISC_CY, DISC_RADIUS);
@@ -180,10 +189,21 @@ function stepSim() {
   render();
 }
 
+/** Step back one fixed-size step (paused); un-finishes the throw if it had completed. */
+function stepBack() {
+  pauseSim();
+  if (!state.launch || state.t <= 0) return;
+  state.result = null;
+  state.t = Math.max(0, state.t - STEP_DT);
+  rebuildTrailTo(state.t);
+  render();
+}
+
 window.simState  = state;
 window.startSim  = startSim;
 window.pauseSim  = pauseSim;
 window.resetSim  = resetSim;
 window.stepSim   = stepSim;
+window.stepBack  = stepBack;
 
 window.addEventListener('load', resetSim);
