@@ -71,6 +71,7 @@
       align-items: center;
       gap: 8px;
     }
+    .panel[hidden] { display: none; }
 
     .panel-label {
       font-size: 0.8rem;
@@ -166,17 +167,26 @@
 <div class="main-layout">
 
 <div class="canvases">
-  <div class="panel">
+  <div class="panel" id="panel-platform" hidden>
     <span class="panel-label">Platform view</span>
     <canvas id="canvas-rotating" width="320" height="320"></canvas>
   </div>
-  <div class="panel">
+  <div class="panel" id="panel-ground">
     <span class="panel-label">Ground view</span>
     <canvas id="canvas-ground" width="320" height="320"></canvas>
   </div>
 </div>
 
 <div class="controls">
+
+  <div class="control-row">
+    <span class="control-label">View</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-view-ground" class="active">Ground</button>
+      <button id="btn-view-platform">Platform</button>
+      <button id="btn-view-both">Both</button>
+    </div>
+  </div>
 
   <div class="control-row">
     <span class="control-label">Throw</span>

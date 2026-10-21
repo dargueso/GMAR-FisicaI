@@ -2,6 +2,23 @@
 
 window.addEventListener('load', () => {
 
+  // ── View mode (which panel(s) are shown) ─────────────────────────────────
+  const btnViewGround   = document.getElementById('btn-view-ground');
+  const btnViewPlatform = document.getElementById('btn-view-platform');
+  const btnViewBoth     = document.getElementById('btn-view-both');
+  const panelGround     = document.getElementById('panel-ground');
+  const panelPlatform   = document.getElementById('panel-platform');
+  function setViewMode(mode) {
+    btnViewGround.classList.toggle('active', mode === 'ground');
+    btnViewPlatform.classList.toggle('active', mode === 'platform');
+    btnViewBoth.classList.toggle('active', mode === 'both');
+    panelGround.hidden   = !(mode === 'ground' || mode === 'both');
+    panelPlatform.hidden = !(mode === 'platform' || mode === 'both');
+  }
+  btnViewGround.addEventListener('click',   () => setViewMode('ground'));
+  btnViewPlatform.addEventListener('click', () => setViewMode('platform'));
+  btnViewBoth.addEventListener('click',     () => setViewMode('both'));
+
   // ── Throw mode ───────────────────────────────────────────────────────────
   const btnModeCenter = document.getElementById('btn-mode-center');
   const btnModeEdge    = document.getElementById('btn-mode-edge');
