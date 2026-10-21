@@ -82,6 +82,9 @@ window.addEventListener('load', () => {
     const v = parseFloat(sliderPeriod.value);
     state3D.periodH = v;
     valPeriod.textContent = `${v.toFixed(2)} h`;
+    // In ground-relative mode the pre-launch velocity includes the surface's
+    // own carried speed, which depends on the rotation period.
+    if (!state3D.running && state3D.speedMode === 'ground') applyBearingSpeed();
     renderFrame3D();
   });
 
@@ -90,13 +93,44 @@ window.addEventListener('load', () => {
     btnNoRotation.classList.toggle('active', state3D.noRotation);
     sliderPeriod.disabled = state3D.noRotation;
     valPeriod.textContent = state3D.noRotation ? 'No rotation' : `${state3D.periodH.toFixed(2)} h`;
+    if (!state3D.running && state3D.speedMode === 'ground') applyBearingSpeed();
     renderFrame3D();
   });
 
   // Update vel for arrow display while paused.
   function applyBearingSpeed() {
     if (!state3D.pos) return;
-    state3D.vel = { ...bearingSpeedToVel3D(state3D.pos, state3D.bearing, state3D.speed) };
+    state3D.vel = { ...launchVelocity3D(state3D.pos, state3D.bearing, state3D.speed) };
+  }
+
+  // ── Speed mode (absolute vs. relative-to-Earth) ─────────────────────────────
+  const btnSpeedModeAbs    = document.getElementById('btn-speedmode-absolute');
+  const btnSpeedModeGround = document.getElementById('btn-speedmode-ground');
+
+  function setSpeedMode(mode) {
+    if (mode === state3D.speedMode) return;
+    state3D.speedMode = mode;
+    btnSpeedModeAbs.classList.toggle('active', mode === 'absolute');
+    btnSpeedModeGround.classList.toggle('active', mode === 'ground');
+    // Mode only changes how the *launch* velocity is derived from bearing/speed,
+    // so only re-derive it when the particle hasn't started moving yet.
+    if (!state3D.running) { applyBearingSpeed(); renderFrame3D(); }
+  }
+
+  btnSpeedModeAbs.addEventListener('click',    () => setSpeedMode('absolute'));
+  btnSpeedModeGround.addEventListener('click', () => setSpeedMode('ground'));
+
+  // Rescale current velocity to a new magnitude without touching its heading.
+  // Used while the sim is running, where the particle's actual heading has
+  // likely drifted away from the original launch bearing (free motion +
+  // Coriolis curving the path) — recomputing from bearing would snap it back
+  // to the old heading and look like the particle reversed direction.
+  function applySpeedKeepingHeading() {
+    if (!state3D.vel) return;
+    const spd = mag3(state3D.vel);
+    state3D.vel = spd > 1e-10
+      ? scale3(norm3(state3D.vel), state3D.speed)
+      : launchVelocity3D(state3D.pos, state3D.bearing, state3D.speed);
   }
 
   // ── Speed slider ──────────────────────────────────────────────────────────
@@ -106,7 +140,7 @@ window.addEventListener('load', () => {
     const v = parseInt(sliderSpeed.value, 10);
     state3D.speed = v;
     valSpeed.textContent = `${v} m/s`;
-    applyBearingSpeed();
+    if (state3D.running) applySpeedKeepingHeading(); else applyBearingSpeed();
     renderFrame3D();
   });
 
@@ -141,6 +175,23 @@ window.addEventListener('load', () => {
   document.getElementById('btn-reset').addEventListener('click', () => {
     pauseSim3D();
     resetSim3D();
+  });
+
+  // ── Keyboard shortcuts: ←/→ step back/forward one frame, Space play/pause ──
+  window.addEventListener('keydown', (e) => {
+    // Let a focused slider keep its native arrow-key behaviour.
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+    if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      stepForward3D();
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      stepBack3D();
+    } else if (e.code === 'Space') {
+      e.preventDefault();
+      state3D.running ? pauseSim3D() : startSim3D();
+    }
   });
 
   // ── Click-to-place (raycasting) ───────────────────────────────────────────

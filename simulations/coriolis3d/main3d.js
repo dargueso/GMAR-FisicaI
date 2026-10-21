@@ -1,7 +1,8 @@
 // simulations/coriolis3d/main3d.js
 
-const TIME_SCALE_3D = 3600; // 1 animation second = 1 real hour
-const TRAIL_MAX_3D  = 8000; // must match TRAIL_MAX in scene3d.js
+const TIME_SCALE_3D  = 3600; // 1 animation second = 1 real hour
+const TRAIL_MAX_3D   = 8000; // must match TRAIL_MAX in scene3d.js
+const STEP_DT_3D     = 1800; // seconds of simulated time advanced per frame-step (30 min)
 
 const DEFAULT_LAT = 45, DEFAULT_LON = 0;
 
@@ -9,6 +10,7 @@ const state3D = {
   periodH:     23.93,
   noRotation:  false,
   speed:       200,
+  speedMode:   'absolute', // 'absolute' (inertial/space speed) | 'ground' (speed relative to Earth's surface at launch)
   bearing:     0,
   timeScale:   1,
   frameMode:   'fixed',  // 'fixed' | 'earth' | 'follow'
@@ -42,10 +44,22 @@ function earthAngle3D() {
   return (2 * Math.PI * state3D.elapsedReal) / (state3D.periodH * 3600);
 }
 
+// Launch velocity (inertial frame) for a given bearing/speed at pos.
+// 'ground' mode treats `speed` as the speed relative to the rotating Earth's
+// surface at the launch point (as if thrown by someone standing there), so
+// the surface's own carried velocity (Ω × r) is added on top of it. The two
+// modes only coincide when the Earth isn't rotating.
+function launchVelocity3D(pos, bearing, speed) {
+  const vRel = bearingSpeedToVel3D(pos, bearing, speed);
+  if (state3D.speedMode !== 'ground') return vRel;
+  const vSurface = cross3(getOmegaVec(), scale3(pos, EARTH_RADIUS));
+  return add3(vRel, vSurface);
+}
+
 function resetSim3D() {
   const pos = state3D.initPos || latLonToVec3(DEFAULT_LAT, DEFAULT_LON);
   state3D.pos         = { ...pos };
-  state3D.vel         = { ...bearingSpeedToVel3D(pos, state3D.bearing, state3D.speed) };
+  state3D.vel         = { ...launchVelocity3D(pos, state3D.bearing, state3D.speed) };
   state3D.initPos     = { ...pos };
   state3D.trail       = [];
   state3D.trailEF     = [];
@@ -93,13 +107,10 @@ function updateInfoBox3D() {
   document.getElementById('info-speed').textContent   = `Speed:  ${mag3(state3D.vel).toFixed(0)} m/s`;
 }
 
-function animate3D(timestamp) {
-  if (!state3D.running) return;
-  if (state3D.lastTime === null) state3D.lastTime = timestamp;
-  const dtAnim = Math.min((timestamp - state3D.lastTime) / 1000, 0.05);
-  state3D.lastTime = timestamp;
-  const dtReal = dtAnim * TIME_SCALE_3D * state3D.timeScale;
-
+// Advance the particle by dtReal seconds of simulated time (may be negative,
+// to step backward — the free-geodesic update is an exact, time-symmetric
+// rotation, so running it with a negative dt undoes a forward step exactly).
+function advanceState3D(dtReal) {
   // Free geodesic on sphere — no forces in inertial frame
   const spd = mag3(state3D.vel);
   if (spd > 1e-10) {
@@ -124,9 +135,37 @@ function animate3D(timestamp) {
   state3D.trail.push({ x: state3D.pos.x, y: state3D.pos.y, z: state3D.pos.z });
   const efPos = rotateY(state3D.pos, -earthAngle3D());
   state3D.trailEF.push({ x: efPos.x, y: efPos.y, z: efPos.z });
+}
+
+function animate3D(timestamp) {
+  if (!state3D.running) return;
+  if (state3D.lastTime === null) state3D.lastTime = timestamp;
+  const dtAnim = Math.min((timestamp - state3D.lastTime) / 1000, 0.05);
+  state3D.lastTime = timestamp;
+  const dtReal = dtAnim * TIME_SCALE_3D * state3D.timeScale;
+
+  advanceState3D(dtReal);
 
   renderFrame3D();
   state3D.rafId = requestAnimationFrame(animate3D);
+}
+
+/** Advance exactly one fixed-size step forward (paused), for walking through the motion. */
+function stepForward3D() {
+  pauseSim3D();
+  if (!state3D.pos) resetSim3D();
+  advanceState3D(STEP_DT_3D);
+  renderFrame3D();
+}
+
+/** Step back one fixed-size step (paused); clamped so elapsedReal doesn't go negative. */
+function stepBack3D() {
+  pauseSim3D();
+  if (!state3D.pos) resetSim3D();
+  const dt = Math.max(-STEP_DT_3D, -state3D.elapsedReal);
+  if (dt === 0) return;
+  advanceState3D(dt);
+  renderFrame3D();
 }
 
 function startSim3D() {
@@ -173,6 +212,8 @@ window.state3D       = state3D;
 window.startSim3D    = startSim3D;
 window.pauseSim3D    = pauseSim3D;
 window.resetSim3D    = resetSim3D;
+window.stepForward3D = stepForward3D;
+window.stepBack3D    = stepBack3D;
 window.renderFrame3D = renderFrame3D;
 window.earthAngle3D  = earthAngle3D;
 window.getOrbit      = () => g_orbit;

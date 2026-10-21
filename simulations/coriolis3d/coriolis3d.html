@@ -203,6 +203,14 @@
   </div>
 
   <div class="control-row">
+    <span class="control-label">Speed is</span>
+    <div class="button-row" style="justify-content:flex-start;gap:8px;">
+      <button id="btn-speedmode-absolute" class="active">Absolute (space)</button>
+      <button id="btn-speedmode-ground">Relative to Earth</button>
+    </div>
+  </div>
+
+  <div class="control-row">
     <span class="control-label">Particle speed</span>
     <input type="range" id="slider-speed" min="0" max="1000" step="10" value="200">
     <span class="control-value" id="val-speed">200 m/s</span>
@@ -256,7 +264,7 @@
     <button id="btn-reset">Reset</button>
   </div>
 
-  <p class="hint">Click globe to set start · Drag to rotate · Scroll to zoom</p>
+  <p class="hint">Click globe to set start · Drag to rotate · Scroll to zoom · ←/→ step back/forward · Space play/pause</p>
 </div>
 
 </div>
