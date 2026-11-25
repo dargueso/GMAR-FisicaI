@@ -62,7 +62,7 @@ class Module1 {
     // Spokes
     ctx.strokeStyle = 'rgba(110,130,200,0.40)'; ctx.lineWidth = 1.5;
     for (let i = 0; i < 8; i++) {
-      const a = this.angle + i * Math.PI / 4;
+      const a = -this.angle + i * Math.PI / 4;
       ctx.beginPath(); ctx.moveTo(cx, cy);
       ctx.lineTo(cx + Math.cos(a)*dPx, cy + Math.sin(a)*dPx); ctx.stroke();
     }
@@ -78,7 +78,8 @@ class Module1 {
     ctx.beginPath(); ctx.arc(cx, cy, dPx, 0, Math.PI*2); ctx.stroke();
 
     // Radial track for mass
-    const ta = this.angle;
+    // Canvas y points down, so negate the angle: ω > 0 is drawn counter-clockwise.
+    const ta = -this.angle;
     ctx.save(); ctx.setLineDash([5,5]);
     ctx.strokeStyle = 'rgba(255,180,60,0.45)'; ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -98,9 +99,9 @@ class Module1 {
     ctx.beginPath(); ctx.arc(mx, my, 7, 0, Math.PI*2); ctx.fill();
 
     // Tangential velocity arrow v = ω·r
-    const v    = s.omega * s.r;
+    const v    = s.omega * r;
     const vDir = Math.sign(s.omega || 1);
-    const perpA = ta + vDir * Math.PI/2;
+    const perpA = ta - vDir * Math.PI/2;
     const vPx   = Math.min(v * scale * 0.22, dPx * 0.7);
     if (vPx > 4) {
       const vx = mx + Math.cos(perpA)*vPx, vy = my + Math.sin(perpA)*vPx;
@@ -144,7 +145,7 @@ class Module1 {
     }
     ctx.font = '11px ui-monospace, Menlo, monospace';
     ctx.fillStyle = '#505060';
-    ctx.fillText('top-down view · rotating frame', 14, H - 12);
+    ctx.fillText('top-down view · inertial frame', 14, H - 12);
   }
 
   buildControls(panel) {
@@ -206,12 +207,13 @@ function drawOmegaArc(ctx, cx, cy, radius, omega) {
   const sweep = Math.min(Math.abs(omega) / 8, 1) * Math.PI * 1.6 + 0.5;
   ctx.strokeStyle = '#5fb3d4'; ctx.lineWidth = 2;
   ctx.beginPath();
-  if (dir > 0) ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 + sweep);
-  else         ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 - sweep, true);
+  // ω > 0 → counter-clockwise on screen (canvas angles grow clockwise).
+  if (dir > 0) ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 - sweep, true);
+  else         ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 + sweep);
   ctx.stroke();
-  const endA = -Math.PI/2 + dir * sweep;
+  const endA = -Math.PI/2 - dir * sweep;
   const ex = cx + Math.cos(endA)*radius, ey = cy + Math.sin(endA)*radius;
-  const tx = -Math.sin(endA)*dir,        ty =  Math.cos(endA)*dir;
+  const tx =  Math.sin(endA)*dir,        ty = -Math.cos(endA)*dir;
   ctx.fillStyle = '#5fb3d4';
   ctx.beginPath();
   ctx.moveTo(ex + tx*8, ey + ty*8);
@@ -219,11 +221,12 @@ function drawOmegaArc(ctx, cx, cy, radius, omega) {
   ctx.lineTo(ex + ty*5, ey - tx*5);
   ctx.closePath(); ctx.fill();
   ctx.font = 'bold 13px DM Sans, sans-serif';
-  ctx.fillText('ω', cx + radius*0.7 + 4, cy - radius*0.7 - 4);
+  ctx.fillText('ω', cx - radius*0.7 - 14, cy - radius*0.7 - 4);
 }
 
 function drawLSymbol(ctx, cx, cy, omega) {
-  const ox = cx - 38, oy = cy - 50, R = 13;
+  // ⊙ = out of page (ω > 0, CCW)   ⊗ = into page (ω < 0, CW)
+  const ox = cx + 38, oy = cy - 50, R = 13;
   ctx.shadowColor = '#ffd166'; ctx.shadowBlur = 14;
   ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(ox, oy, R, 0, Math.PI*2); ctx.stroke();

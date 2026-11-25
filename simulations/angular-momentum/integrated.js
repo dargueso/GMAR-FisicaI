@@ -151,7 +151,7 @@ function drawGyre(ctx, cx, cy, rPx, angle, omega, tau) {
       const r = rPx * t;
       const a = phase + t * Math.PI * 1.4;
       const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r;
+      const y = cy - Math.sin(a) * r;   // y flipped: ω > 0 is counter-clockwise
       if (t === 0) ctx.moveTo(x, y);
       else         ctx.lineTo(x, y);
     }
@@ -174,9 +174,9 @@ function drawGyre(ctx, cx, cy, rPx, angle, omega, tau) {
     for (let i = 0; i < N; i++) {
       const a = (i * 2 * Math.PI) / N;
       const x = cx + Math.cos(a) * (rPx + 14);
-      const y = cy + Math.sin(a) * (rPx + 14);
+      const y = cy - Math.sin(a) * (rPx + 14);
       const tx = -Math.sin(a) * Math.sign(tau);
-      const ty =  Math.cos(a) * Math.sign(tau);
+      const ty = -Math.cos(a) * Math.sign(tau);
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + tx * arrowLen, y + ty * arrowLen);
