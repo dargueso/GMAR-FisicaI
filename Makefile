@@ -1,9 +1,9 @@
 WEB_REPO := /Users/daniel/Scripts/dargueso.github.io
 
-.PHONY: deploy deploy-coriolis3d deploy-solar-system deploy-coriolis-carousel
+.PHONY: deploy deploy-coriolis3d deploy-solar-system deploy-coriolis-carousel deploy-angular-momentum
 
 # Sync every deployable simulation in one go.
-deploy: deploy-coriolis3d deploy-solar-system deploy-coriolis-carousel
+deploy: deploy-coriolis3d deploy-solar-system deploy-coriolis-carousel deploy-angular-momentum
 	@echo ""
 	@echo "  All simulations synced → $(WEB_REPO)/simulations"
 	@echo "  Next:"
@@ -33,3 +33,11 @@ deploy-coriolis-carousel:
 	cp $(SRC)/coriolis-carousel.html $(SRC)/*.js $(WEB)/
 	python3 tools/inject_back_link.py $(WEB)/coriolis-carousel.html
 	@echo "  Synced coriolis-carousel → $(WEB)"
+
+deploy-angular-momentum:
+	$(eval SRC := simulations/angular-momentum)
+	$(eval WEB := $(WEB_REPO)/simulations/angular-momentum)
+	@mkdir -p $(WEB)
+	cp $(SRC)/index.html $(SRC)/*.js $(WEB)/
+	python3 tools/inject_back_link.py $(WEB)/index.html
+	@echo "  Synced angular-momentum → $(WEB)"
