@@ -7,6 +7,8 @@
 (function () {
 'use strict';
 
+const R_MAX = 3;   // m — largest disc radius on the slider
+
 class Module1 {
   constructor() {
     this.angle = 0;
@@ -52,7 +54,9 @@ class Module1 {
     ctx.clearRect(0, 0, W, H);
 
     const r = this._r();
-    const scale = Math.min(W, H) * 0.40 / s.R;
+    // Fixed px-per-metre so the disc grows and shrinks with R; the largest
+    // disc on the slider (R_MAX) just fits the canvas.
+    const scale = Math.min(W, H) * 0.46 / R_MAX;
     const dPx = s.R * scale, mPx = r * scale;
 
     // Disc
@@ -102,7 +106,7 @@ class Module1 {
     const v    = s.omega * r;
     const vDir = Math.sign(s.omega || 1);
     const perpA = ta - vDir * Math.PI/2;
-    const vPx   = Math.min(v * scale * 0.22, dPx * 0.7);
+    const vPx   = Math.min(v * scale * 0.40, dPx * 0.7);
     if (vPx > 4) {
       const vx = mx + Math.cos(perpA)*vPx, vy = my + Math.sin(perpA)*vPx;
       ctx.strokeStyle = 'rgba(255,230,90,0.85)'; ctx.lineWidth = 2;
@@ -156,7 +160,7 @@ class Module1 {
     addSection(panel, 'Disc');
     addSlider(panel, 'Disc mass M', 'kg', 1, 30, 0.1, s.M,
       v => { s.M = v; this._applyFrac(s.rFrac); });
-    addSlider(panel, 'Disc radius R', 'm', 0.5, 3, 0.05, s.R,
+    addSlider(panel, 'Disc radius R', 'm', 0.5, R_MAX, 0.05, s.R,
       v => { s.R = v; this._applyFrac(s.rFrac); });
 
     addSection(panel, 'Sliding mass');
