@@ -51,7 +51,8 @@ const PhysicsState = {
   module1: { m: 5,  r: 2,    omega: 2,   I: 0,  L: 0 },
   module2: { mass: 5, radius: 2, torque: 2, shapeA: 'disc', shapeB: 'ring',
              omegaA: 0, omegaB: 0, IA: 0, IB: 0, alphaA: 0, alphaB: 0 },
-  module3: { r: 2, F: 5, theta: 90, tau: 0 },
+  module3: { r: 3, F: 10, phiR: 30, phiF: 100,   // angles from +x, degrees
+             theta: 70, tau: 0, showRperp: false, showFperp: false },
   module4: { mass: 5, radius: 3, tau: 2, I: 0, L: 0, omega: 0, t: 0 },
 };
 
